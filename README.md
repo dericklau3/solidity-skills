@@ -30,9 +30,9 @@ skills/
 
 ## 使用方式
 
-将仓库中的技能目录接入你的 Codex 技能体系后，即可在需要进行 Solidity / Foundry 安全审查时调用该技能。
-
-如果后续要扩展更多技能，建议继续按 `skills/<skill-name>/SKILL.md` 的目录结构维护。
+```
+$skill-installer install https://github.com/dericklau3/solidity-skills/tree/main/skills/solidity-foundry-security-review
+```
 
 ## License
 
