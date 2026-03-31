@@ -79,7 +79,3 @@ $skill-installer install https://github.com/dericklau3/solidity-skills/tree/main
 ```
 $skill-installer install https://github.com/dericklau3/solidity-skills/tree/main/skills/solidity-foundry-security-review
 ```
-
-## License
-
-本项目采用 `AGPL-3.0-only`，详见 [LICENSE](/Users/derick/Documents/git-project/contracts/evm/solidity-skills/LICENSE)。
