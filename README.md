@@ -2,10 +2,11 @@
 
 一个用于存放 Solidity 相关 Codex 技能的仓库。
 
-当前仓库内置三个技能：
+当前仓库内置四个技能：
 
 - `doc-natspec`：用于在 Solidity / Foundry 开发完成后补齐和修复 NatSpec 注释，并用 `forge doc` 做最终验证
 - `foundry-test`：用于在 Foundry 项目开发完成后补齐和强化测试，优先补高价值单元测试，并在必要时增加集成、fuzz 与 invariant 测试
+- `foundry-post-dev-optimization`：用于在 Foundry 项目开发完成后做 gas、代码结构和可维护性优化，低风险项直接修，风险较高的项保留为建议
 - `solidity-foundry-security-review`：用于在 Foundry 项目中进行面向代码上下文的安全审查，强调先读项目、再做结论
 
 ## 当前内容
@@ -15,6 +16,8 @@ skills/
   doc-natspec/
     SKILL.md
   foundry-test/
+    SKILL.md
+  foundry-post-dev-optimization/
     SKILL.md
   solidity-foundry-security-review/
     SKILL.md
@@ -36,6 +39,14 @@ skills/
 - 扫描 `src/` 与现有 `test/` 识别高价值测试缺口
 - 优先补充单元测试，并在必要时补集成、fuzz 与 invariant 测试
 - 用 `forge test` 验证新增测试是否成立
+
+`foundry-post-dev-optimization` 适用于以下场景：
+
+- Solidity / Foundry 功能开发完成后做专项优化收尾
+- 默认扫描 `src/` 下所有合约，排除接口，识别 gas、结构和可维护性优化点
+- 低风险优化直接落地，中高风险优化按条件执行或保留为建议
+- 优先复用项目已有 benchmark、snapshot 或 gas report 流程验证优化收益
+- 在不改变预期行为的前提下收敛代码质量和执行成本
 
 `solidity-foundry-security-review` 适用于以下场景：
 
@@ -59,6 +70,10 @@ $skill-installer install https://github.com/dericklau3/solidity-skills/tree/main
 
 ```
 $skill-installer install https://github.com/dericklau3/solidity-skills/tree/main/skills/foundry-test
+```
+
+```
+$skill-installer install https://github.com/dericklau3/solidity-skills/tree/main/skills/foundry-post-dev-optimization
 ```
 
 ```
