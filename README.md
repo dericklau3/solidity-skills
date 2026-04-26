@@ -2,6 +2,8 @@
 
 一个用于存放 Solidity 相关 Codex 技能的仓库。
 
+foundry-tes -> foundry-post-dev-optimization ->  solidity-foundry-security-review -> doc-natspec
+
 当前仓库内置四个技能：
 
 - `doc-natspec`：用于在 Solidity / Foundry 开发完成后补齐和修复 NatSpec 注释，并用 `forge doc` 做最终验证
