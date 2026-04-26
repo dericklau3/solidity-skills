@@ -1,6 +1,6 @@
 ---
 name: solidity-foundry-security-review
-description: "Review Solidity contracts in Foundry projects for security issues. Use when users want file-grounded audit findings after feature work, before merge, during contract hardening, or when reviewing vaults, token integrations, upgradeable systems, oracle-dependent logic, and low-level call surfaces. Covers project-first reading, exploit-path analysis, accounting correctness, integration risk assessment, and Forge-oriented test guidance."
+description: "Review Solidity contracts in Foundry projects for security and business-logic issues. Use when users want file-grounded audit findings after feature work, before merge, during hardening, or when reviewing accounting, value flows, state machines, permissions, integrations, upgradeability, pricing, callbacks, or low-level calls. Requires project-first reading, business model reconstruction, invariant and exploit-path analysis, and Forge-oriented test guidance."
 license: AGPL-3.0-only
 metadata:
   author: derick
@@ -12,150 +12,144 @@ metadata:
 
 ### Understand the Request Before Responding
 
-For conceptual questions, explain the security concept without pretending to have audited code. For review requests, follow the workflow below and read the project before making any claim.
+For conceptual questions, explain the security concept without pretending to have audited code. For review requests, proceed with the workflow below.
 
 ### CRITICAL: Always Read the Project First
 
-Before reviewing security or suggesting fixes:
+Before reporting findings or suggesting fixes:
 
-1. Read `README.md`
-2. Read `foundry.toml`
-3. Search the project for relevant contract files, usually `src/**/*.sol`
-4. Read the target contracts the user mentioned, or identify the most relevant contracts if no target was specified
-5. Read adjacent dependencies that affect behavior:
-   - imported interfaces and libraries
-   - proxy / implementation pairs
-   - token mocks and callback receivers
-   - tests that show intended behavior
+1. **Search the user's project** for contracts, tests, scripts, interfaces, libraries, mocks, and docs.
+2. **Read the relevant files** before making claims. Include neighboring contracts when behavior crosses file boundaries.
+3. **Default to reviewing the user's existing system, not an imagined generic contract**. When users say "review security", they usually want findings grounded in their actual business logic and call paths.
 
-If a file cannot be read, surface the failure explicitly. Report the path attempted and state that the review is incomplete. Never silently fall back to a generic answer.
+If a file cannot be read, surface the failure explicitly. Report the path attempted and why the review is incomplete. Never silently fall back to a generic checklist.
 
-### Fundamental Rule: Review the User's Code, Not an Imaginary Contract
+### Fundamental Rule: Reconstruct the Business Logic Before Looking for Bugs
 
-Default to reviewing the user's existing contracts, not generating a generic checklist. When users ask to "check security", they usually want findings grounded in their actual files, functions, state variables, and call paths.
+Most serious Solidity bugs are violations of the protocol's intended rules, not isolated syntax hazards.
 
-Every finding must be:
+Before classifying a suspected issue, establish:
 
-- file-grounded
-- severity-ranked
-- exploit-oriented
-- fix-oriented
-- testable in Forge
+1. **Actors** - who can call each meaningful path, and under what assumptions.
+2. **Assets and value flows** - what moves, what is minted, burned, locked, paid, credited, or accounted.
+3. **State machine** - which states exist, how they transition, and which transitions should be impossible.
+4. **Accounting model** - what totals, balances, shares, debts, rewards, limits, or rates must stay consistent.
+5. **Trust assumptions** - which dependencies, operators, inputs, time assumptions, or off-chain facts the system relies on.
 
-If no material issue is found, state that explicitly and still report residual risks and test gaps.
+Do not rely only on a vulnerability taxonomy. A finding should explain which intended business rule, invariant, or trust assumption breaks.
 
-## Methodology
+### Methodology
 
-### Step 1: Establish Review Scope
+The primary workflow is **business-model-driven exploit analysis**:
 
-Identify:
+1. Inspect project files and understand intended behavior.
+2. Build a compact model of actors, assets, states, and invariants.
+3. Trace realistic success and failure paths through public entrypoints.
+4. Check generic Solidity risks only after mapping them to the project's actual behavior.
+5. Report only file-grounded findings with exploit or failure paths and Forge test ideas.
 
-- which files are in scope
-- which contracts move funds
-- which contracts rely on pricing, signatures, callbacks, or upgradeability
-- which external protocols, tokens, or oracles influence safety assumptions
+See [Business Model and Exploit Analysis](#business-model-and-exploit-analysis) for the full procedure.
 
-Do not review a contract in isolation when its risk depends on neighboring contracts.
+## Business Model and Exploit Analysis
 
-### Step 2: Review by Security Lens
+Procedural guide for reviewing Foundry projects without reducing the task to a generic checklist.
 
-Use the relevant lenses below based on contract behavior. Do not dump every category blindly; focus on what the code actually does.
+**Prerequisite:** Always reconstruct the business model first.
 
-- access control and trust boundaries
-- reentrancy and callback surfaces
-- proxy, delegatecall, initializer, and storage layout hazards
-- signature, permit, replay, `ecrecover`, and input validation pitfalls
-- math, accounting, rounding, share pricing, and state transition correctness
-- token and NFT integration risks
-- oracle, pricing, slippage, deadline, gas price, randomness, and time assumptions
-- ETH transfer, refund, forced ETH, selfdestruct, and low-level call hazards
-- storage, memory, calldata, delete semantics, transient storage, and on-chain secret misconceptions
+### Step 1: Establish Scope and Intent
 
-### Step 3: Look for Exploit Paths, Not Just Code Smells
+1. Read `README.md`, `foundry.toml`, and project docs when they exist.
+2. Search `src/`, `test/`, `script/`, and relevant interfaces or libraries.
+3. Identify the contracts in scope and the neighboring contracts required to understand them.
+4. Read tests to infer expected behavior, but do not assume tests are complete or correct.
+5. Note any missing context that prevents a complete review.
+
+### Step 2: Build the Protocol Model
+
+Before hunting for findings, write down the model you are reviewing:
+
+- External actors and privileged actors
+- User-facing actions and operator actions
+- Assets, balances, credits, debts, limits, and other accounting variables
+- State transitions and terminal states
+- External integrations and their assumptions
+- Time, price, randomness, signature, or configuration assumptions
+
+Use this model to decide what "correct" means. Business-logic bugs are usually mismatches between this model and the implementation.
+
+### Step 3: Derive Invariants and Failure Conditions
+
+Convert the model into properties the code should preserve.
+
+Examples of useful property types:
+
+- A user cannot receive more value than they are entitled to.
+- Total accounting cannot drift from actual assets or recorded obligations.
+- State transitions cannot skip required prerequisites.
+- Privileged actions cannot violate user guarantees unless explicitly designed.
+- External inputs cannot make stale, circular, or inconsistent values look valid.
+
+These are examples, not a checklist. Derive properties from the project's own rules.
+
+### Step 4: Trace Exploit Paths Through Public Entrypoints
 
 For each suspected issue, answer:
 
-1. What invariant or trust assumption is broken?
-2. How would an attacker, privileged role, or ordinary user reach it?
-3. What is the practical impact?
-4. What is the smallest safe remediation?
-5. What Forge test would prove the fix?
+1. Which invariant, business rule, or trust assumption breaks?
+2. Which actor can reach the path using normal entrypoints?
+3. What sequence of calls or state changes triggers the issue?
+4. What is the impact in assets, permissions, accounting drift, denial of service, or broken user guarantees?
+5. What is the smallest safe remediation?
+6. What Forge test would prove the bug and the fix?
 
-If you cannot describe a plausible exploit path or failure path, lower confidence and say so explicitly.
+If you cannot describe a plausible exploit or failure path, do not present the item as a strong finding. Lower confidence or move it to residual risk.
 
-### Step 4: Prefer Proven Components and Patterns
+### Step 5: Apply Solidity Security Lenses
 
-When recommending fixes, prefer established OpenZeppelin components or proven design patterns over handwritten ad hoc logic.
+After the business model is clear, apply only the lenses relevant to the code:
 
-Examples:
+- Access control and trust boundaries
+- Reentrancy and external-call ordering
+- Upgradeability, delegatecall, initialization, and storage layout
+- Signature validation, replay protection, and authorization
+- Arithmetic, rounding, accounting, and state transition correctness
+- Token and NFT integration behavior
+- Pricing, freshness, slippage, randomness, and time assumptions
+- Native asset transfers, refunds, forced value, and low-level calls
+- Storage, memory, calldata, delete semantics, and on-chain secret misconceptions
 
-- prefer `ReentrancyGuard` over custom boolean locks unless the project already uses a different vetted guard pattern
-- prefer established access control patterns over scattered manual `require(msg.sender == ...)`
-- prefer `SafeERC20` over raw ERC20 transfers when token behavior may vary
+Do not dump all categories into the final answer. Use them to find issues, then report only code-grounded results.
 
-Do not copy external library source into the user's contract. Recommend integration, not source embedding.
+### Step 6: Recommend Minimal Fixes and Forge Tests
+
+For each finding:
+
+- Prefer proven libraries or established patterns over custom logic when applicable.
+- Do not copy external library source into the user's contract.
+- Suggest the smallest fix that restores the broken invariant.
+- Suggest at least one Forge regression test that fails before the fix and passes after it.
+- Add edge-case or invariant test guidance when the bug is accounting, sequencing, or state-machine related.
 
 ## Foundry Review Guidance
 
-- Prefer `src/**/*.sol` and adjacent tests over abstract reasoning
-- When suggesting verification, use Forge-oriented commands such as:
-  - `forge test --contracts <path> -vvvv`
-  - `forge test --match-contract <ContractName> -vvvv`
-  - `forge test --match-test <TestName> -vvvv`
-- When a finding affects accounting, access control, callback behavior, or upgradeability, propose:
-  - at least one regression test
-  - at least one edge-case test
-- When a contract depends on forks, oracles, or external protocols, check whether safety assumptions depend on:
-  - fork block height
-  - oracle freshness
-  - cross-protocol state transitions
+Prefer project files over abstract reasoning. Useful verification commands include:
 
-## Review Lenses
+- `forge test -vvvv`
+- `forge test --match-contract <ContractName> -vvvv`
+- `forge test --match-test <TestName> -vvvv`
 
-### Vault / Pool / Staking / Share-Based Contracts
-
-Check for:
-
-- first deposit or share inflation
-- donate-to-pool share skew
-- fee-on-transfer incompatibility
-- self-transfer or balance aliasing
-- rounding to zero and precision loss
-- manipulable price reads
-- rescue or recovery backdoors
-
-### Token / NFT Integration Contracts
-
-Check for:
-
-- non-standard ERC20 return values
-- tokens that return `false` without revert
-- invalid `permit` assumptions
-- ERC777 or ERC721 callback reentrancy
-- custom `transferFrom` authorization issues
-- exposed metadata or mint boundary issues
-
-### Upgradeable / Proxy / Low-Level Call Contracts
-
-Check for:
-
-- exposed initializers
-- uninitialized implementations
-- storage collisions
-- arbitrary `delegatecall`
-- assembly backdoors
-- unsafe upgrade authorization
-- implementation slot misuse
+When the project depends on forked state or external systems, call out any missing RPC, fork block, environment variable, or dependency that limits review confidence.
 
 ## Output Contract
 
 Default review output should follow this structure:
 
-### 1. Scope
+### 1. Scope and Model
 
-- reviewed files
-- key dependencies, interfaces, and external protocols
-- trust boundary assumptions
+- Reviewed files
+- Relevant dependencies and neighboring contracts
+- Actors, assets, major flows, and key assumptions
+- Invariants or business rules used during review
 
 ### 2. Findings
 
@@ -165,24 +159,26 @@ For each finding, include:
 
 - Severity
 - Affected code
-- Issue
+- Broken invariant or business rule
 - Exploit path or failure path
 - Impact
 - Remediation
 - Suggested Forge test
+- Confidence when useful
 
 ### 3. No Material Issues Case
 
 If no material issue is found, say so explicitly. Then include:
 
-- residual risks
-- uncovered surfaces
-- missing tests or invariants
+- Residual risks
+- Uncovered surfaces
+- Business rules or invariants that still need tests
 
 ## Response Style
 
 - Be concise and direct
+- Lead with findings, not background
 - Do not turn the response into a generic security encyclopedia
 - Do not ask the user to inspect files you can inspect yourself
-- Do not hide uncertainty; state assumptions clearly
-- If code looks acceptable but the test surface is weak, call out the testing gap
+- State uncertainty and assumptions clearly
+- If code looks acceptable but the business model or test surface is weak, call that out
