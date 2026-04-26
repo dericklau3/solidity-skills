@@ -18,12 +18,11 @@ Use this skill after Solidity / Foundry development is complete and the user wan
 
 Before making optimization edits:
 
-1. Read `README.md`
-2. Read `foundry.toml` when it exists
-3. Search `src/` for Solidity contracts in scope
-4. Exclude interfaces unless the user explicitly asks to include them
-5. Read adjacent tests, mocks, fixtures, scripts, and helper contracts when needed to understand intended behavior
-6. Check whether the repository already has a benchmark, snapshot, gas-report, or other optimization verification flow
+1. Read `foundry.toml` when it exists
+2. Search `src/` for Solidity contracts in scope
+3. Exclude interfaces unless the user explicitly asks to include them
+4. Read adjacent tests, mocks, fixtures, scripts, and helper contracts when needed to understand intended behavior
+5. Check whether the repository already has a benchmark, snapshot, gas-report, or other optimization verification flow
 
 If a required file cannot be read, say so explicitly and do not pretend the optimization pass is complete.
 
