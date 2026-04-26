@@ -18,11 +18,10 @@ Use this skill after Solidity development is complete and the user wants NatSpec
 
 Before editing NatSpec:
 
-1. Read `README.md`
-2. Read `foundry.toml` when it exists
-3. Search `src/` for the relevant Solidity contracts
-4. Exclude interfaces and libraries unless the user explicitly asks to document them
-5. Read adjacent tests and supporting contracts when needed to resolve semantics
+1. Read `foundry.toml` when it exists
+2. Search `src/` for the relevant Solidity contracts
+3. Exclude interfaces and libraries unless the user explicitly asks to document them
+4. Read adjacent tests and supporting contracts when needed to resolve semantics
 
 If a required file cannot be read, say so explicitly and do not pretend the documentation pass is complete.
 
