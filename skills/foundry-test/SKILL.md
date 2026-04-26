@@ -1,6 +1,6 @@
 ---
 name: foundry-test
-description: "Review and strengthen Solidity / Foundry test coverage after development. Scans `src/` and existing `test/`, prioritizes high-value unit tests, adds targeted integration, fuzz, and invariant coverage when justified, and verifies with `forge test`."
+description: "Review and strengthen Solidity / Foundry tests after development. Use when users need test gaps identified, high-value tests added or improved, realistic user flows covered, deployment scripts reused where relevant, `test/docs/*.md` maintained, and `forge test` verification reported."
 license: AGPL-3.0-only
 metadata:
   author: derick
@@ -12,140 +12,121 @@ metadata:
 
 ### Understand the Request Before Editing
 
-Use this skill after Solidity development is complete and the user wants missing or weak tests to be reviewed, added, or strengthened. By default, inspect the repository's Solidity contracts under `src/` and the current tests under `test/`, unless the user narrows scope to specific contracts or files.
+For conceptual questions ("How should I test this contract?"), explain without editing code. For requests to add, review, improve, or document tests, proceed with the workflow below.
 
-### Read the Project First
+### CRITICAL: Always Read the Project First
 
 Before writing or changing tests:
 
-1. Read `README.md`
-2. Read `foundry.toml` when it exists
-3. Search `src/` for the relevant Solidity contracts
-4. Read existing tests under `test/`
-5. Read supporting mocks, helper contracts, fixtures, and scripts when they are needed to resolve intended behavior
+1. **Search the user's project** for Solidity contracts, Foundry tests, deployment scripts, helpers, mocks, fixtures, and `test/docs`.
+2. **Read the relevant files** to understand the existing behavior, test style, setup model, and documentation conventions.
+3. **Default to integration with the existing test suite, not replacement**. Add focused tests and helpers in the local style. Only reorganize or replace broad test structure when explicitly requested.
 
-If a required file cannot be read, say so explicitly and do not pretend the test pass is complete.
+If a file cannot be read, surface the failure explicitly. Report the path attempted and the reason. Never silently fall back to generic testing advice as if the project context does not exist.
 
-### Default Scope
+### Fundamental Rule: Test Behavior, Not Coverage Counts
 
-By default, inspect:
+Before adding any test, identify the behavior or guarantee it proves:
 
-- Solidity contracts under `src/`
-- existing tests under `test/`
-- user-specified contracts or test files
+1. **Clear behavior gap exists?** Add or improve the smallest test that proves it.
+2. **Behavior is already covered?** Do not add a duplicate just to increase test count.
+3. **Expected behavior is ambiguous?** Stop and name the ambiguity instead of inventing assertions.
 
-Repository-wide discovery does not mean every contract needs every test type. Test depth should follow value and clarity, not mechanical completeness.
+Favor a smaller number of high-signal tests over broad mechanical coverage expansion.
 
-### Coverage Priorities
+### Methodology
 
-Review and prioritize gaps across:
+The primary workflow is **behavior discovery from project source and existing tests**:
 
-- successful paths
-- revert and failure paths
-- permission and role enforcement
-- state transitions and storage effects
-- emitted events
-- boundary conditions
-- cross-contract interaction behavior
-- fuzzable input constraints
-- invariant-worthy system properties
+1. Inspect contracts, tests, scripts, docs, mocks, and helpers.
+2. Identify externally meaningful behaviors, failure paths, state transitions, and multi-step flows.
+3. Choose the lightest test layer that proves each behavior.
+4. Patch tests and matching `test/docs` together.
+5. Run `forge test` and report the result.
 
-Favor a smaller number of high-signal tests over a larger number of repetitive low-value tests.
+See [Behavior Discovery and Test Strengthening](#behavior-discovery-and-test-strengthening) for the full procedure.
 
-## Test Layer Rules
+## Behavior Discovery and Test Strengthening
 
-### 1. Unit Tests First
+Procedural guide for strengthening Foundry tests without turning the task into a rewrite, audit, or coverage-maximization pass.
 
-Unit tests are the default and highest-priority output of this skill.
+**Prerequisite:** Always follow the behavior-first rule above.
 
-Prefer unit tests that clearly validate:
+### Step 1: Identify the Test Surface
 
-- expected return values
-- storage updates
-- emitted events
-- revert selectors or revert reasons when they are stable and meaningful
-- boundary inputs
-- role and permission restrictions
+1. Read `README.md` and `foundry.toml` when they exist.
+2. Search `src/` for the contracts in scope.
+3. Read related tests under `test/`.
+4. Read deployment or setup scripts under `script/` when behavior depends on deployed configuration.
+5. Read existing `test/docs/*.md` when present.
+6. Read mocks, fixtures, and helper contracts only as needed to understand current setup.
 
-### 2. Targeted Integration Tests
+### Step 2: Map Behaviors to Test Layers
 
-Add integration tests when behavior depends on multiple contracts, deployment wiring, callbacks, token movement, or realistic flow sequencing that isolated unit tests do not capture well.
+Use the lightest layer that proves the behavior:
 
-Do not convert every unit behavior into an integration test.
+1. **Unit test** - for isolated return values, state updates, emitted events, boundary checks, revert paths, and access checks.
+2. **Integration test** - for behavior that depends on multiple contracts, deployment setup, external interactions, asset movement, or realistic sequencing.
+3. **Realistic flow test** - for behavior whose risk comes from how a user or operator actually reaches it through public entrypoints.
+4. **Fuzz test** - for arithmetic, validation, monotonicity, idempotence, or state transitions with broad input ranges.
+5. **Invariant test** - only for long-lived system properties that should hold across call sequences.
 
-### 3. Selective Fuzz Tests
+Do not promote every unit behavior into an integration test. Do not generate fuzz or invariant tests mechanically.
 
-Add fuzz tests when they materially improve confidence.
+### Step 3: Prefer Project-Realistic Setup
 
-Good fuzz targets include:
+When the project has reusable setup or deployment helpers, prefer using them so tests exercise the same inputs, order, environment assumptions, and post-deploy configuration as the project expects.
 
-- arithmetic or accounting logic with broad input ranges
-- validation logic with clear constraints
-- monotonicity or idempotence properties
-- state transitions that should hold across many inputs
+Use mocks or direct helper shortcuts only when the shortcut is not the behavior under test. If the test claims to prove a real user path, the action should go through the relevant public entrypoint.
 
-Do not generate fuzz tests mechanically for every function.
+For fork tests, pin the block when possible and document assumptions that affect assertions.
 
-### 4. Selective Invariant Tests
+### Step 4: Patch Tests
 
-Add invariant tests only when the module has a clear long-lived system property worth preserving across call sequences.
+Add or modify tests only after the missing behavior is clear.
 
-Good invariant candidates include:
+Keep changes focused:
 
-- balance conservation
-- asset and share consistency
-- bounded state-machine transitions
-- permissions that should never be bypassed
-- accounting relationships that must always hold
+- Reuse local naming, fixtures, helper patterns, and assertion style.
+- Add new helpers only when they remove meaningful repetition.
+- Avoid production refactors unless they are necessary to make the test possible and are within the user's request.
+- Use approximate assertions only when external math, rounding, timing, or unit conversion makes exact equality inappropriate.
 
-Do not force invariant tests onto simple modules that ordinary unit tests already cover adequately.
+### Step 5: Maintain Test Documentation
 
-## Editing Rules
+When adding or materially changing a test file, create or update its matching documentation under `test/docs`.
 
-### Audit Before Patching
+Default convention:
 
-Review the existing tests before writing new ones. Identify what is missing, weak, or redundant before adding coverage.
+- `test/Foo.t.sol` -> `test/docs/FooTest.md`
 
-### Patch Clear Gaps Directly
+If the repository already uses another convention, follow the local convention.
 
-If intended behavior can be inferred reliably from the implementation, naming, existing tests, mocks, scripts, and project documentation, directly add or improve tests.
+Each test doc should capture:
 
-### Stop on Ambiguity
+- The test file's purpose and setup model
+- The major scenarios or test groups
+- Important helpers and what they prepare
+- Fork, mock, timing, rounding, or environment assumptions that matter
 
-If the expected outcome is not clear from code and context, do not invent assertions. Name the exact behavior that is ambiguous, explain why it is unclear, and leave it unpatched until clarified.
-
-### Keep Scope Tight
-
-Do not turn a testing pass into a production refactor, fixture redesign, audit report, or coverage-maximization exercise.
+Documentation should describe behavior, not repeat every assertion line-by-line.
 
 ## Verification
 
 After edits, run `forge test`.
 
-If it fails, explain whether the failure appears caused by:
+When focused verification is useful, run the narrow command first, then the full suite when feasible. If RPC access, dependencies, or environment variables are missing, report the exact blocker and the command that could not be completed.
 
-- the new or modified tests
-- a pre-existing repository issue
-- project configuration or dependency problems unrelated to the new tests
-
-Do not claim completion without reporting the `forge test` result.
+Do not claim completion without reporting the verification result.
 
 ## Output Contract
 
 Default final output should include:
 
-- reviewed contracts and test files
-- major testing gaps identified
-- tests added or updated
-- which test layers were used: unit, integration, fuzz, invariant
-- skipped gaps and why they were skipped
+- Files reviewed
+- Tests added or updated
+- Test docs added or updated
+- Test layers used and why
+- Gaps intentionally skipped and why
 - `forge test` result
-- any remaining ambiguity or test-risk notes
-
-## Response Style
-
-- Be direct
-- Stay file-grounded
-- Prefer behavior coverage over mechanical coverage expansion
-- Do not guess assertions
-- Do not blur the boundary between testing work and security review
+- Remaining ambiguity or risk
