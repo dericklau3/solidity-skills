@@ -2,12 +2,13 @@
 
 一个用于存放 Solidity 相关 Codex 技能的仓库。
 
-foundry-tes -> foundry-post-dev-optimization ->  solidity-foundry-security-review -> doc-natspec
+foundry-test -> solidity-foundry-code-review -> foundry-post-dev-optimization -> solidity-foundry-security-review -> doc-natspec
 
-当前仓库内置四个技能：
+当前仓库内置五个技能：
 
 - `doc-natspec`：用于在 Solidity / Foundry 开发完成后补齐和修复 NatSpec 注释，并用 `forge doc` 做最终验证
 - `foundry-test`：用于在 Foundry 项目开发完成后补齐和强化测试，优先补高价值单元测试，并在必要时增加集成、fuzz 与 invariant 测试
+- `solidity-foundry-code-review`：用于在 Foundry 项目功能开发后或合并前做工程质量 code review，关注正确性、边界条件、接口设计、集成假设、可维护性和测试缺口
 - `foundry-post-dev-optimization`：用于在 Foundry 项目开发完成后做 gas、代码结构和可维护性优化，低风险项直接修，风险较高的项保留为建议
 - `solidity-foundry-security-review`：用于在 Foundry 项目中进行面向代码上下文的安全审查，强调先读项目、再做结论
 
@@ -18,6 +19,8 @@ skills/
   doc-natspec/
     SKILL.md
   foundry-test/
+    SKILL.md
+  solidity-foundry-code-review/
     SKILL.md
   foundry-post-dev-optimization/
     SKILL.md
@@ -50,6 +53,13 @@ skills/
 - 优先复用项目已有 benchmark、snapshot 或 gas report 流程验证优化收益
 - 在不改变预期行为的前提下收敛代码质量和执行成本
 
+`solidity-foundry-code-review` 适用于以下场景：
+
+- 在功能开发后或合并前做 Solidity / Foundry 工程质量审查
+- 检查正确性、边界条件、状态流、接口设计和依赖集成是否符合预期
+- 发现测试缺口、部署假设、初始化顺序和调用路径风险
+- 输出基于文件和行号的 review findings，并把安全、测试或优化专项问题路由到对应 skill
+
 `solidity-foundry-security-review` 适用于以下场景：
 
 - 对 Foundry Solidity 项目做安全检查
@@ -72,6 +82,10 @@ $skill-installer install https://github.com/dericklau3/solidity-skills/tree/main
 
 ```
 $skill-installer install https://github.com/dericklau3/solidity-skills/tree/main/skills/foundry-test
+```
+
+```
+$skill-installer install https://github.com/dericklau3/solidity-skills/tree/main/skills/solidity-foundry-code-review
 ```
 
 ```
