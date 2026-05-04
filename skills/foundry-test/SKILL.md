@@ -34,15 +34,26 @@ Before adding any test, identify the behavior or guarantee it proves:
 
 Favor a smaller number of high-signal tests over broad mechanical coverage expansion.
 
+### Dependency Rule: Test the Project's Actual Integration
+
+When contracts inherit from or compose OpenZeppelin, Solady, Chainlink, Uniswap, proxy libraries, or other dependencies:
+
+1. Locate the installed source through `foundry.toml`, `remappings.txt`, `lib/`, `node_modules/`, or package config.
+2. Read the exact component, mock, example, or test in the dependency when behavior depends on hooks, modifiers, role checks, initializers, token callbacks, oracle semantics, or upgradeability.
+3. Use dependency examples and generated baselines as references for integration shape, but keep project tests focused on the user's behavior and invariants.
+4. Do not copy dependency tests wholesale unless the project intentionally vendors them.
+5. Add regression tests around required overrides, initializer order, storage compatibility, and interacting extensions when those are part of the risk.
+
 ### Methodology
 
 The primary workflow is **behavior discovery from project source and existing tests**:
 
 1. Inspect contracts, tests, scripts, docs, mocks, and helpers.
-2. Identify externally meaningful behaviors, failure paths, state transitions, and multi-step flows.
-3. Choose the lightest test layer that proves each behavior.
-4. Patch tests and matching `test/docs` together.
-5. Run `forge test` and report the result.
+2. Inspect dependency source when imported behavior shapes the expected result.
+3. Identify externally meaningful behaviors, failure paths, state transitions, and multi-step flows.
+4. Choose the lightest test layer that proves each behavior.
+5. Patch tests and matching `test/docs` together.
+6. Run `forge test` and report the result.
 
 See [Behavior Discovery and Test Strengthening](#behavior-discovery-and-test-strengthening) for the full procedure.
 
@@ -59,7 +70,8 @@ Procedural guide for strengthening Foundry tests without turning the task into a
 3. Read related tests under `test/`.
 4. Read deployment or setup scripts under `script/` when behavior depends on deployed configuration.
 5. Read existing `test/docs/*.md` when present.
-6. Read mocks, fixtures, and helper contracts only as needed to understand current setup.
+6. Read `remappings.txt`, `lib/`, `node_modules/`, and package config when dependency behavior matters.
+7. Read mocks, fixtures, and helper contracts only as needed to understand current setup.
 
 ### Step 2: Map Behaviors to Test Layers
 
@@ -72,6 +84,8 @@ Use the lightest layer that proves the behavior:
 5. **Invariant test** - only for long-lived system properties that should hold across call sequences.
 
 Do not promote every unit behavior into an integration test. Do not generate fuzz or invariant tests mechanically.
+
+For dependency-backed behavior, add the narrowest test that proves the project's integration point: an override is called, a role modifier gates the path, an initializer cannot be skipped or repeated, a callback is handled safely, or a library-imposed invariant remains true after the user's flow.
 
 ### Step 3: Prefer Project-Realistic Setup
 

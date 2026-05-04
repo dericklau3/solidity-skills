@@ -38,15 +38,26 @@ metadata:
 
 不要只依赖漏洞分类表。每个发现都应说明哪个业务规则、invariant 或信任假设被破坏。
 
+### 库和依赖规则：验证项目中安装的源码
+
+在标记或修复依赖 OpenZeppelin、Solady、Uniswap、Chainlink、代理库、Token 标准或其他依赖的行为前：
+
+1. **定位项目中安装的依赖**：通过 `foundry.toml`、`remappings.txt`、`lib/`、`node_modules/` 或包配置确认路径。
+2. **阅读项目实际使用版本的源码**，不要依赖记忆中的 API。hook、override 点、storage 和 initializer 要求都可能随版本变化。
+3. **优先使用成熟库组件和文档化的扩展点**，而不是自定义修复逻辑；如果库已经提供 guard、role system、token extension、oracle check、proxy pattern 或 utility，应优先采用。
+4. **不要把外部库源码复制进用户合约**作为修复。应通过 import、inherit、compose 或 configure 使用依赖。
+5. 当出现 proxy、initializer、namespaced storage、gap、delegatecall 或升级脚本时，**把可升级性和 storage layout 作为一等审查范围**。
+
 ### 方法论
 
 主要流程是**业务模型驱动的攻击路径分析**：
 
 1. 检查项目文件并理解预期行为。
-2. 建立参与者、资产、状态和 invariant 的紧凑模型。
-3. 通过 public entrypoint 追踪真实成功路径和失败路径。
-4. 只有在映射到项目实际行为后，再检查通用 Solidity 风险。
-5. 只报告基于文件、带攻击或失败路径、并有 Forge 测试思路的发现。
+2. 检查已安装依赖源码，理解被 import 组件和集成假设。
+3. 建立参与者、资产、状态和 invariant 的紧凑模型。
+4. 通过 public entrypoint 追踪真实成功路径和失败路径。
+5. 只有在映射到项目实际行为后，再检查通用 Solidity 风险。
+6. 只报告基于文件、带攻击或失败路径、并有 Forge 测试思路的发现。
 
 完整流程见 [业务模型和攻击路径分析](#业务模型和攻击路径分析)。
 
@@ -62,7 +73,8 @@ metadata:
 2. 搜索 `src/`、`test/`、`script/` 以及相关接口或库。
 3. 识别范围内合约，以及理解它们所需的相邻合约。
 4. 阅读测试以推断预期行为，但不要假设测试完整或正确。
-5. 记录任何会阻碍完整审查的缺失上下文。
+5. 当 import 或继承影响行为时，阅读 `remappings.txt`、`lib/`、`node_modules/` 和包配置。
+6. 记录任何会阻碍完整审查的缺失上下文。
 
 ### Step 2: 建立协议模型
 
@@ -111,6 +123,7 @@ metadata:
 - 访问控制和信任边界
 - 重入和外部调用顺序
 - 可升级性、delegatecall、初始化和存储布局
+- 依赖集成：必需 override、hook、modifier、constructor、initializer、storage 和版本特定行为
 - 签名验证、重放保护和授权
 - 算术、取整、会计和状态转换正确性
 - Token 和 NFT 集成行为
@@ -124,7 +137,8 @@ metadata:
 
 对于每个发现：
 
-- 适用时优先推荐成熟库或已验证模式，而不是自定义逻辑。
+- 适用时优先推荐成熟库、项目已安装依赖或已验证模式，而不是自定义逻辑。
+- 如果库组件是正确修复，指出 import、继承/组合变化、必需 override 或 initializer，以及任何 storage layout 影响。
 - 不要把外部库源码复制进用户合约。
 - 建议能恢复被破坏 invariant 的最小修复。
 - 至少建议一个修复前失败、修复后通过的 Forge 回归测试。

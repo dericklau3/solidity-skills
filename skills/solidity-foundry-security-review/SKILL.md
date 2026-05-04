@@ -38,15 +38,26 @@ Before classifying a suspected issue, establish:
 
 Do not rely only on a vulnerability taxonomy. A finding should explain which intended business rule, invariant, or trust assumption breaks.
 
+### Library and Dependency Rule: Verify the Installed Source
+
+Before flagging or fixing behavior that depends on OpenZeppelin, Solady, Uniswap, Chainlink, proxy libraries, token standards, or other dependencies:
+
+1. **Locate the installed dependency** using `foundry.toml`, `remappings.txt`, `lib/`, `node_modules/`, or package config.
+2. **Read the exact source version in the project**, not a remembered API. Hooks, override points, storage, and initializer requirements change across versions.
+3. **Prefer proven library components and documented extension points** over custom remediation logic when a library already provides the guard, role system, token extension, oracle check, proxy pattern, or utility.
+4. **Never copy external library source into the user's contract** as a fix. Import, inherit, compose, or configure the dependency.
+5. **Treat upgradeability and storage layout as first-class review scope** whenever proxies, initializers, namespaced storage, gaps, delegatecall, or upgrade scripts appear.
+
 ### Methodology
 
 The primary workflow is **business-model-driven exploit analysis**:
 
 1. Inspect project files and understand intended behavior.
-2. Build a compact model of actors, assets, states, and invariants.
-3. Trace realistic success and failure paths through public entrypoints.
-4. Check generic Solidity risks only after mapping them to the project's actual behavior.
-5. Report only file-grounded findings with exploit or failure paths and Forge test ideas.
+2. Inspect installed dependency source for imported components and integration assumptions.
+3. Build a compact model of actors, assets, states, and invariants.
+4. Trace realistic success and failure paths through public entrypoints.
+5. Check generic Solidity risks only after mapping them to the project's actual behavior.
+6. Report only file-grounded findings with exploit or failure paths and Forge test ideas.
 
 See [Business Model and Exploit Analysis](#business-model-and-exploit-analysis) for the full procedure.
 
@@ -62,7 +73,8 @@ Procedural guide for reviewing Foundry projects without reducing the task to a g
 2. Search `src/`, `test/`, `script/`, and relevant interfaces or libraries.
 3. Identify the contracts in scope and the neighboring contracts required to understand them.
 4. Read tests to infer expected behavior, but do not assume tests are complete or correct.
-5. Note any missing context that prevents a complete review.
+5. Read `remappings.txt`, `lib/`, `node_modules/`, and package config when imports or inheritance matter.
+6. Note any missing context that prevents a complete review.
 
 ### Step 2: Build the Protocol Model
 
@@ -111,6 +123,7 @@ After the business model is clear, apply only the lenses relevant to the code:
 - Access control and trust boundaries
 - Reentrancy and external-call ordering
 - Upgradeability, delegatecall, initialization, and storage layout
+- Dependency integration: required overrides, hooks, modifiers, constructors, initializers, storage, and version-specific behavior
 - Signature validation, replay protection, and authorization
 - Arithmetic, rounding, accounting, and state transition correctness
 - Token and NFT integration behavior
@@ -124,7 +137,8 @@ Do not dump all categories into the final answer. Use them to find issues, then 
 
 For each finding:
 
-- Prefer proven libraries or established patterns over custom logic when applicable.
+- Prefer proven libraries, project-installed dependencies, or established patterns over custom logic when applicable.
+- If a library component is the right fix, identify the import, inheritance/composition change, required override or initializer, and any storage-layout implication.
 - Do not copy external library source into the user's contract.
 - Suggest the smallest fix that restores the broken invariant.
 - Suggest at least one Forge regression test that fails before the fix and passes after it.

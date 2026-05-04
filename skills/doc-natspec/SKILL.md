@@ -22,6 +22,7 @@ Before editing NatSpec:
 2. Search `src/` for the relevant Solidity contracts
 3. Exclude interfaces and libraries unless the user explicitly asks to document them
 4. Read adjacent tests and supporting contracts when needed to resolve semantics
+5. Read `remappings.txt`, `lib/`, `node_modules/`, or package config when inherited behavior, overrides, initializers, or imported types determine meaning
 
 If a required file cannot be read, say so explicitly and do not pretend the documentation pass is complete.
 
@@ -77,6 +78,16 @@ For `event` declarations:
 - make the event understandable for off-chain observers and integrators
 
 Comments must be accurate, specific, and useful to both documentation readers and reviewers. Passing `forge doc` is the minimum verification bar, not the quality bar.
+
+### Dependency and Inheritance Rules
+
+When documenting contracts that inherit from or compose OpenZeppelin or other libraries:
+
+- Read the installed dependency source before documenting overrides, hooks, modifiers, initializers, inherited storage, or extension behavior.
+- Do not duplicate imported library NatSpec unless the user's contract changes the behavior or integration semantics.
+- Document why the user's override exists, what inherited requirement it satisfies, and what assumptions it preserves.
+- For upgradeable contracts, document initializer order, reinitializer intent, storage-layout assumptions, and externally meaningful upgrade restrictions when they are part of the contract's public integration surface.
+- Do not claim guarantees from a library component unless the installed source actually provides them.
 
 ## Editing Rules
 

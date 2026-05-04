@@ -1,11 +1,10 @@
 ---
-
 name: foundry-post-dev-optimization
-description: 当 Solidity 或 Foundry 合约开发已经完成，并且需要进行开发后的优化检查时使用。优化范围包括 Gas、代码结构和可维护性，但不要把它扩展成安全审计或完整重构。
+description: "当 Solidity 或 Foundry 合约开发已经完成，并且需要进行开发后的优化检查时使用。优化范围包括 Gas、代码结构和可维护性，但不要把它扩展成安全审计或完整重构。"
 license: AGPL-3.0-only
 metadata:
-author: derick
---------------
+  author: derick
+---
 
 # Solidity 合约开发后的优化
 
@@ -25,6 +24,7 @@ author: derick
 * 搜索 `src/` 目录下范围内的 Solidity 合约
 * 默认排除 interfaces，除非用户明确要求包含它们
 * 在需要理解预期行为时，阅读相邻的测试、mock、fixture、script 和辅助合约
+* 当 import、继承或库版本会影响优化时，阅读 `remappings.txt`、`lib/`、`node_modules/` 和包配置
 * 检查仓库是否已经存在 benchmark、snapshot、gas-report 或其他优化验证流程
 
 如果无法读取必要文件，需要明确说明，不要假装优化检查已经完成。
@@ -51,6 +51,16 @@ author: derick
 
 不要机械式优化。相比表面改动，优先选择有实际意义且行为安全的改进。
 
+## 库和版本规则
+
+在替换、简化或微优化与 OpenZeppelin、Solady、Token 标准、代理工具或其他依赖重叠的逻辑前：
+
+* 定位并阅读项目安装的依赖源码。不要凭记忆假设 API、hook 或 storage pattern。
+* 相比维护自定义重复逻辑，优先 import、配置或扩展成熟组件。
+* 不要把依赖源码粘贴进用户合约作为优化。
+* 把继承 hook、必需 override、initializer 顺序、namespaced storage、storage gap 和 state variable 顺序视为优化边界。
+* 如果建议的优化可能影响 storage layout、ABI、event 语义、访问控制或外部集成假设，除非用户明确批准更大范围改动，否则保留为建议。
+
 ## 优化等级
 
 ### 1. 安全的直接编辑
@@ -64,6 +74,7 @@ author: derick
 * 缓存重复读取的 storage 值或长度
 * 删除冗余计算、变量或分支
 * 抽取小型 helper，以提升清晰度，同时不改变行为
+* 当行为完全一致时，用已安装且边界清晰的库组件替换本地重复 utility 逻辑
 
 ### 2. 有条件的编辑
 
@@ -76,6 +87,7 @@ author: derick
 * loop 优化
 * state variable 重新排序
 * 减少状态转换和外部调用周围的重复读取
+* 修改 inheritance、modifier 或 hook 以使用依赖提供的 extension
 
 只有在满足以下条件时才 patch：
 

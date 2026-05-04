@@ -34,15 +34,26 @@ metadata:
 
 优先编写少量高信号测试，而不是机械扩充覆盖率。
 
+### 依赖规则：测试项目的真实集成方式
+
+当合约继承或组合 OpenZeppelin、Solady、Chainlink、Uniswap、代理库或其他依赖时：
+
+1. 通过 `foundry.toml`、`remappings.txt`、`lib/`、`node_modules/` 或包配置定位已安装源码。
+2. 当行为依赖 hook、modifier、role check、initializer、token callback、oracle 语义或可升级性时，阅读对应依赖组件、mock、example 或 test。
+3. 可以把依赖示例和生成的 baseline 作为集成形态参考，但项目测试应聚焦用户自己的行为和 invariant。
+4. 不要整段复制依赖测试，除非项目明确 vendor 这些测试。
+5. 当风险涉及必需 override、initializer 顺序、storage 兼容性或相互作用的 extension 时，添加对应回归测试。
+
 ### 方法论
 
 主要流程是**从项目源码和现有测试中发现行为**：
 
 1. 检查合约、测试、脚本、文档、mock 和 helper。
-2. 识别对外有意义的行为、失败路径、状态转换和多步骤流程。
-3. 为每个行为选择能证明它的最轻测试层级。
-4. 同步修改测试和对应的 `test/docs`。
-5. 运行 `forge test` 并报告结果。
+2. 当 import 行为影响预期结果时，检查依赖源码。
+3. 识别对外有意义的行为、失败路径、状态转换和多步骤流程。
+4. 为每个行为选择能证明它的最轻测试层级。
+5. 同步修改测试和对应的 `test/docs`。
+6. 运行 `forge test` 并报告结果。
 
 完整流程见 [行为发现和测试强化](#行为发现和测试强化)。
 
@@ -59,7 +70,8 @@ metadata:
 3. 阅读 `test/` 下的相关测试。
 4. 当行为依赖部署配置时，阅读 `script/` 下的部署或 setup 脚本。
 5. 如果存在，阅读 `test/docs/*.md`。
-6. 只在需要理解当前 setup 时，阅读 mock、fixture 和辅助合约。
+6. 当依赖行为重要时，阅读 `remappings.txt`、`lib/`、`node_modules/` 和包配置。
+7. 只在需要理解当前 setup 时，阅读 mock、fixture 和辅助合约。
 
 ### Step 2: 将行为映射到测试层级
 
@@ -72,6 +84,8 @@ metadata:
 5. **Invariant 测试** - 只用于跨调用序列长期成立的系统属性。
 
 不要把每个单元行为都升级成集成测试。不要机械生成 fuzz 或 invariant 测试。
+
+对于依赖支撑的行为，添加能证明项目集成点的最窄测试：override 被调用、role modifier 正确限制路径、initializer 不能跳过或重复、callback 被安全处理，或库施加的 invariant 在用户流程后仍然成立。
 
 ### Step 3: 优先使用项目真实 setup
 

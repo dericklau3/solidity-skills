@@ -1,11 +1,10 @@
 ---
-
 name: doc-natspec
-description: 在 Solidity / Foundry 合约开发完成后，审查并补全 NatSpec 注释。覆盖 `public` 和 `external` 函数、复杂的 `internal` 和 `private` 函数，以及对外有意义的 `struct` 和 `event` 声明，并通过 `forge doc` 进行验证。
+description: "在 Solidity / Foundry 合约开发完成后，审查并补全 NatSpec 注释。覆盖 `public` 和 `external` 函数、复杂的 `internal` 和 `private` 函数，以及对外有意义的 `struct` 和 `event` 声明，并通过 `forge doc` 进行验证。"
 license: AGPL-3.0-only
 metadata:
-author: derick
---------------
+  author: derick
+---
 
 # 为 Solidity 合约编写和修复 NatSpec
 
@@ -25,6 +24,7 @@ author: derick
 * 在 `src/` 中搜索相关 Solidity 合约
 * 默认排除 interfaces 和 libraries，除非用户明确要求为它们编写文档
 * 在需要理解语义时，阅读相邻测试和辅助合约
+* 当继承行为、override、initializer 或导入类型决定语义时，阅读 `remappings.txt`、`lib/`、`node_modules/` 或包配置
 
 如果某个必需文件无法读取，需要明确说明，不要假装文档工作已经完整完成。
 
@@ -88,6 +88,16 @@ author: derick
 注释必须准确、具体，并且对文档读者和审查者都有实际帮助。
 
 通过 `forge doc` 只是最低验证标准，不是质量标准。
+
+## 依赖和继承规则
+
+当为继承或组合 OpenZeppelin 等库的合约编写文档时：
+
+* 在记录 override、hook、modifier、initializer、继承 storage 或 extension 行为前，阅读项目安装的依赖源码。
+* 不要重复导入库本身的 NatSpec，除非用户合约改变了行为或集成语义。
+* 说明用户合约中的 override 为什么存在、满足了哪个继承要求、保留了哪些假设。
+* 对可升级合约，当 initializer 顺序、reinitializer 意图、storage layout 假设或对外有意义的升级限制属于公开集成面时，要写清楚。
+* 不要声称库组件提供某种保证，除非安装版本源码确实提供。
 
 ## 编辑规则
 

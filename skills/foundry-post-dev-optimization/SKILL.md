@@ -22,7 +22,8 @@ Before making optimization edits:
 2. Search `src/` for Solidity contracts in scope
 3. Exclude interfaces unless the user explicitly asks to include them
 4. Read adjacent tests, mocks, fixtures, scripts, and helper contracts when needed to understand intended behavior
-5. Check whether the repository already has a benchmark, snapshot, gas-report, or other optimization verification flow
+5. Read `remappings.txt`, `lib/`, `node_modules/`, and package config when imports, inheritance, or library versions affect the optimization
+6. Check whether the repository already has a benchmark, snapshot, gas-report, or other optimization verification flow
 
 If a required file cannot be read, say so explicitly and do not pretend the optimization pass is complete.
 
@@ -48,6 +49,16 @@ Review opportunities across:
 
 Do not optimize mechanically. Prefer meaningful, behavior-safe improvements over superficial changes.
 
+### Library and Version Rule
+
+Before replacing, simplifying, or micro-optimizing logic that overlaps with OpenZeppelin, Solady, token standards, proxy utilities, or other dependencies:
+
+- Locate and read the installed dependency source. Do not assume an API, hook, or storage pattern from memory.
+- Prefer importing, configuring, or extending a proven component over maintaining custom duplicated logic.
+- Never paste dependency source into the user's contract as an optimization.
+- Treat inherited hooks, required overrides, initializer order, namespaced storage, storage gaps, and state-variable order as optimization boundaries.
+- If a suggested optimization could affect storage layout, ABI, event semantics, access control, or external integration assumptions, leave it as a recommendation unless the user explicitly approves the broader change.
+
 ## Optimization Tiers
 
 ### 1. Safe Direct Edits
@@ -61,6 +72,7 @@ Common examples:
 - caching repeated storage reads or lengths
 - removing redundant calculations, variables, or branches
 - small helper extraction that improves clarity without changing behavior
+- replacing local duplicate utility logic with an already-installed, well-scoped library component when the behavior is identical
 
 ### 2. Conditional Edits
 
@@ -73,6 +85,7 @@ Common examples:
 - loop optimization
 - state-variable reordering
 - reducing repeated reads around state transitions and external calls
+- changing inheritance, modifiers, or hooks to use a dependency-provided extension
 
 Only patch these when:
 
