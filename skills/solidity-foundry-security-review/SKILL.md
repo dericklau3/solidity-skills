@@ -1,198 +1,230 @@
 ---
 name: solidity-foundry-security-review
-description: "Review Solidity contracts in Foundry projects for security and business-logic issues. Use when users want file-grounded audit findings after feature work, before merge, during hardening, or when reviewing accounting, value flows, state machines, permissions, integrations, upgradeability, pricing, callbacks, or low-level calls. Requires project-first reading, business model reconstruction, invariant and exploit-path analysis, and Forge-oriented test guidance."
+description: "Use when reviewing Solidity contracts or Foundry projects for security and protocol-level risks, including business logic, asset flows, accounting, economic attacks, trust boundaries, integrations, upgradeability, pricing, callbacks, signatures, or low-level EVM behavior."
 license: AGPL-3.0-only
 metadata:
   author: derick
 ---
 
-# Review Solidity Contracts in Foundry Projects
+# Review Solidity Contracts and Protocols in Foundry Projects
+
+## Core Principle
+
+Do not begin with a vulnerability taxonomy. First reconstruct what the protocol promises, how value moves, who can change state, and which properties must always hold. A material finding is a demonstrated violation of a business rule, invariant, or trust assumption—not merely unusual code.
+
+Priority: **business logic > fund safety > accounting > economic attacks > permissions and trust > implementation hazards**.
+
+## Review Modes
+
+Choose the mode from the user's request and state the effective scope.
+
+### Targeted Security Review
+
+Use when the user names a contract, feature, patch, or risk surface. Review that scope plus every neighboring contract, dependency, test, script, and configuration needed to trace its behavior. Apply all relevant security lenses, but do not silently claim coverage of the rest of the protocol. List unreviewed surfaces and residual risks.
+
+Read [Protocol Audit Methodology](references/protocol-audit-methodology.md) when the target includes asset custody, accounting, economic mechanisms, or any of its specialized surfaces. Use only the sections relevant to the target.
+
+### Full Protocol Audit
+
+Use when the user requests a complete, repository-wide, protocol-wide, exhaustive, or audit-style assessment. Read [Protocol Audit Methodology](references/protocol-audit-methodology.md) completely before analyzing findings. Follow its ordered phases and completion gate. Finding one severe issue does not end the audit.
+
+### Conceptual Question
+
+Explain the concept without implying that code was reviewed. Ask for or inspect the project only when the user requests a code-grounded conclusion.
+
+## Non-Negotiable Review Rules
+
+### Read the Project Before Making Claims
+
+1. Search for contracts, interfaces, libraries, tests, scripts, mocks, deployment configuration, docs, and upgrade tooling.
+2. Read the in-scope files and all neighboring components required to understand cross-contract behavior.
+3. Treat tests as evidence of intent, not proof of correctness or completeness.
+4. If relevant files cannot be read, report the attempted paths and explain the resulting coverage limit. Never substitute a generic checklist silently.
+
+### Verify Installed Dependencies
+
+Before reasoning about OpenZeppelin, Solady, Uniswap, Chainlink, proxy libraries, token standards, or other dependencies:
+
+1. Resolve the installed version through `foundry.toml`, `remappings.txt`, `lib/`, `node_modules/`, or package configuration.
+2. Read the exact imported source, including inherited hooks, modifiers, constructors, initializers, storage, and documented extension points.
+3. Do not rely on a remembered API or assume a well-known library makes the integration safe.
+4. Prefer importing, inheriting, composing, or configuring proven components when recommending a fix. Never copy external library source into the user's contract.
+5. Treat proxies, initializers, namespaced storage, storage gaps, `delegatecall`, and upgrade scripts as storage-layout and authorization scope.
+
+### Use a Capable Attacker Model
+
+Unless the protocol explicitly prevents it, assume an attacker can:
+
+- create many accounts and deploy arbitrary contracts;
+- control callbacks, return values, and intentional reverts from attacker-owned code;
+- use flash liquidity, MEV, transaction ordering, and cross-protocol composition;
+- transfer tokens or force native value directly to protocol addresses;
+- choose extreme inputs, wait for favorable chain state, and combine valid operations in one transaction;
+- introduce unusual but permitted token behavior.
+
+Do not reduce the attacker to an honest EOA following the happy path.
 
 ## Core Workflow
 
-### Understand the Request Before Responding
+### 1. Establish Scope and Intent
 
-For conceptual questions, explain the security concept without pretending to have audited code. For review requests, proceed with the workflow below.
+- Read `README.md`, `foundry.toml`, docs, target contracts, tests, scripts, and configuration.
+- Identify the contracts in scope and the adjacent components required for complete call paths.
+- Record exclusions, unavailable dependencies, missing RPC/fork state, and unverified design assumptions.
+- For a full audit, inventory all production contracts and externally reachable entrypoints.
 
-### CRITICAL: Always Read the Project First
+### 2. Build the Protocol Model
 
-Before reporting findings or suggesting fixes:
+Write a compact working model before hunting for bugs:
 
-1. **Search the user's project** for contracts, tests, scripts, interfaces, libraries, mocks, and docs.
-2. **Read the relevant files** before making claims. Include neighboring contracts when behavior crosses file boundaries.
-3. **Default to reviewing the user's existing system, not an imagined generic contract**. When users say "review security", they usually want findings grounded in their actual business logic and call paths.
+- protocol goal and architecture;
+- production entrypoint inventory and the primary lifecycle each entrypoint belongs to;
+- unprivileged and privileged actors;
+- asset custody and end-to-end value flows;
+- state machines and valid/invalid transitions;
+- accounting authority for assets, shares, debts, rewards, fees, and reserves;
+- price, time, signature, randomness, configuration, and off-chain assumptions;
+- external integrations and failure behavior;
+- role-to-capability-to-maximum-impact trust matrix.
 
-If a file cannot be read, surface the failure explicitly. Report the path attempted and why the review is incomplete. Never silently fall back to a generic checklist.
+You must be able to explain the primary entrypoints, where assets are held, which component controls accounting and pricing, and which components can move value or change critical state. If you cannot, continue modeling before producing findings.
 
-### Fundamental Rule: Reconstruct the Business Logic Before Looking for Bugs
+Keep the model operational rather than narrative-only. For any non-trivial review, maintain concise working artifacts as needed:
 
-Most serious Solidity bugs are violations of the protocol's intended rules, not isolated syntax hazards.
+- asset-flow notes covering source, custodian, accounting source of truth, conversion formula/unit, normal exit, emergency exit, privileged destination, and unsupported direct-transfer behavior;
+- a role-to-capability-to-maximum-impact matrix, including indirect authorities and dangerous role combinations;
+- an invariant map from property → state-changing functions/callbacks/privileged actions/external state that can affect it;
+- an external dependency map covering the value or data relied on, who can influence it, failure behavior, pause/upgrade assumptions, and whether users can still exit;
+- a candidate ledger that distinguishes confirmed findings, rejected theories, unresolved risks, missing evidence, and unreviewed surfaces.
 
-Before classifying a suspected issue, establish:
+### 3. Derive Invariants and Failure Conditions
 
-1. **Actors** - who can call each meaningful path, and under what assumptions.
-2. **Assets and value flows** - what moves, what is minted, burned, locked, paid, credited, or accounted.
-3. **State machine** - which states exist, how they transition, and which transitions should be impossible.
-4. **Accounting model** - what totals, balances, shares, debts, rewards, limits, or rates must stay consistent.
-5. **Trust assumptions** - which dependencies, operators, inputs, time assumptions, or off-chain facts the system relies on.
+Derive properties from the protocol's own rules rather than copying generic examples. Cover as applicable:
 
-Do not rely only on a vulnerability taxonomy. A finding should explain which intended business rule, invariant, or trust assumption breaks.
+- conservation of assets and obligations;
+- user ownership and withdrawal entitlement;
+- solvency and collateralization;
+- share/asset, debt, reward, reserve, and fee consistency;
+- state-transition prerequisites and terminal states;
+- privilege boundaries and user guarantees;
+- price freshness, unit consistency, and manipulation resistance.
 
-### Library and Dependency Rule: Verify the Installed Source
+For each invariant, identify every operation and external state change that can affect it.
 
-Before flagging or fixing behavior that depends on OpenZeppelin, Solady, Uniswap, Chainlink, proxy libraries, token standards, or other dependencies:
+### 4. Trace End-to-End and Composed Paths
 
-1. **Locate the installed dependency** using `foundry.toml`, `remappings.txt`, `lib/`, `node_modules/`, or package config.
-2. **Read the exact source version in the project**, not a remembered API. Hooks, override points, storage, and initializer requirements change across versions.
-3. **Prefer proven library components and documented extension points** over custom remediation logic when a library already provides the guard, role system, token extension, oracle check, proxy pattern, or utility.
-4. **Never copy external library source into the user's contract** as a fix. Import, inherit, compose, or configure the dependency.
-5. **Treat upgradeability and storage layout as first-class review scope** whenever proxies, initializers, namespaced storage, gaps, delegatecall, or upgrade scripts appear.
+Trace public entrypoints through internal functions, neighboring contracts, callbacks, and external protocols until the final state and value transfer. Examine:
 
-### Methodology
+- normal lifecycles such as deposit → mint → earn → withdraw;
+- reordered, repeated, interrupted, and cross-function sequences;
+- multi-user interactions and transferable positions/shares;
+- external-call intermediate states and read-only observations;
+- direct asset transfers, donations, forced value, and stale external state;
+- failure paths, pause paths, recovery paths, and partial updates.
 
-The primary workflow is **business-model-driven exploit analysis**:
+Always ask whether a sequence of individually valid operations creates an unintended result.
 
-1. Inspect project files and understand intended behavior.
-2. Inspect installed dependency source for imported components and integration assumptions.
-3. Build a compact model of actors, assets, states, and invariants.
-4. Trace realistic success and failure paths through public entrypoints.
-5. Check generic Solidity risks only after mapping them to the project's actual behavior.
-6. Report only file-grounded findings with exploit or failure paths and Forge test ideas.
+### 5. Apply the Relevant Security Lenses
 
-See [Business Model and Exploit Analysis](#business-model-and-exploit-analysis) for the full procedure.
+After the model is clear, inspect the applicable surfaces in [Protocol Audit Methodology](references/protocol-audit-methodology.md):
 
-## Business Model and Exploit Analysis
+- asset flow, business logic, invariants, accounting, precision, and rounding;
+- economic model, oracle manipulation, flash liquidity, and MEV;
+- roles, access control, signatures, upgrades, and operational controls;
+- reentrancy, callbacks, external protocols, and token compatibility;
+- low-level EVM behavior, assembly, denial of service, and griefing.
 
-Procedural guide for reviewing Foundry projects without reducing the task to a generic checklist.
+For a full audit, cover every methodology section and mark non-applicable sections with a reason. For a targeted review, cover every lens reachable from the selected scope and disclose the rest as unreviewed.
 
-**Prerequisite:** Always reconstruct the business model first.
+When a request is ambiguous, do not silently expand a narrow target into a full protocol audit. State the effective scope you inferred, review the reachable protocol context deeply, and list the protocol-level sections that would still require a full audit.
 
-### Step 1: Establish Scope and Intent
+### 6. Validate Candidates
 
-1. Read `README.md`, `foundry.toml`, and project docs when they exist.
-2. Search `src/`, `test/`, `script/`, and relevant interfaces or libraries.
-3. Identify the contracts in scope and the neighboring contracts required to understand them.
-4. Read tests to infer expected behavior, but do not assume tests are complete or correct.
-5. Read `remappings.txt`, `lib/`, `node_modules/`, and package config when imports or inheritance matter.
-6. Note any missing context that prevents a complete review.
+A formal finding requires all of:
 
-### Step 2: Build the Protocol Model
+```text
+root cause + reachable attack/failure path + concrete impact
+```
 
-Before hunting for findings, write down the model you are reviewing:
+For each candidate:
 
-- External actors and privileged actors
-- User-facing actions and operator actions
-- Assets, balances, credits, debts, limits, and other accounting variables
-- State transitions and terminal states
-- External integrations and their assumptions
-- Time, price, randomness, signature, or configuration assumptions
+1. Identify the broken invariant, business rule, or trust assumption.
+2. Identify the actor, prerequisites, required privilege, capital, and external conditions.
+3. Trace the exact calls and state changes.
+4. Quantify affected assets, users, accounting drift, liveness loss, or privilege impact where possible.
+5. Challenge the candidate against guards, actual dependency behavior, transaction atomicity, and protocol assumptions.
+6. Build the smallest practical Forge PoC, numerical example, or state-transition proof for material findings.
 
-Use this model to decide what "correct" means. Business-logic bugs are usually mismatches between this model and the implementation.
+If the path or impact cannot be established, lower confidence, classify it as unresolved risk, or discard it. Do not turn style issues or hypothetical discomfort into vulnerabilities.
 
-### Step 3: Derive Invariants and Failure Conditions
+### 7. Recommend Minimal Fixes and Tests
 
-Convert the model into properties the code should preserve.
+- Restore the broken invariant with the smallest safe change.
+- Specify what to check, where to check it, and which security property the change restores.
+- Identify required imports, inheritance/composition, overrides, initializers, and storage-layout effects when a library component is appropriate.
+- Suggest or implement a Forge regression test that fails before the fix and passes after it.
+- Use fuzz tests for mathematical boundaries and input combinations.
+- Use stateful invariant tests for multi-user, multi-function, long-sequence accounting and state-machine properties.
+- Do not alter intended protocol behavior merely to make a fuzz or invariant test pass.
 
-Examples of useful property types:
+Never claim that a test, command, PoC, fork, or tool was executed unless it actually ran successfully. Report missing RPC, fork block, environment, compiler, or dependency constraints.
 
-- A user cannot receive more value than they are entitled to.
-- Total accounting cannot drift from actual assets or recorded obligations.
-- State transitions cannot skip required prerequisites.
-- Privileged actions cannot violate user guarantees unless explicitly designed.
-- External inputs cannot make stale, circular, or inconsistent values look valid.
+## Finding Standard
 
-These are examples, not a checklist. Derive properties from the project's own rules.
+Order findings by `Critical`, `High`, `Medium`, `Low`, then `Informational`. Calibrate severity using impact, likelihood, attack cost, required privilege, affected assets/users, and exploit complexity.
 
-### Step 4: Trace Exploit Paths Through Public Entrypoints
+Each finding must include:
 
-For each suspected issue, answer:
+1. **Title** — root cause and consequence in one sentence.
+2. **Severity and confidence** — with the decisive factors when not obvious.
+3. **Affected code** — precise files, lines, functions, and relevant dependencies.
+4. **Broken invariant or trust assumption**.
+5. **Root cause** — the code, design, accounting, formula, permission, state update, or integration error.
+6. **Attack path or failure scenario** — ordered prerequisites, calls, state changes, and result.
+7. **Impact** — attacker gain, user/protocol loss, accounting corruption, privilege escalation, or liveness failure.
+8. **Proof** — minimal Forge PoC, concrete values, state trace, or mathematical reasoning when warranted.
+9. **Recommendation** — an executable minimal remediation and the property it restores.
+10. **Suggested regression test**.
 
-1. Which invariant, business rule, or trust assumption breaks?
-2. Which actor can reach the path using normal entrypoints?
-3. What sequence of calls or state changes triggers the issue?
-4. What is the impact in assets, permissions, accounting drift, denial of service, or broken user guarantees?
-5. What is the smallest safe remediation?
-6. What Forge test would prove the bug and the fix?
-
-If you cannot describe a plausible exploit or failure path, do not present the item as a strong finding. Lower confidence or move it to residual risk.
-
-### Step 5: Apply Solidity Security Lenses
-
-After the business model is clear, apply only the lenses relevant to the code:
-
-- Access control and trust boundaries
-- Reentrancy and external-call ordering
-- Upgradeability, delegatecall, initialization, and storage layout
-- Dependency integration: required overrides, hooks, modifiers, constructors, initializers, storage, and version-specific behavior
-- Signature validation, replay protection, and authorization
-- Arithmetic, rounding, accounting, and state transition correctness
-- Token and NFT integration behavior
-- Pricing, freshness, slippage, randomness, and time assumptions
-- Native asset transfers, refunds, forced value, and low-level calls
-- Storage, memory, calldata, delete semantics, and on-chain secret misconceptions
-
-Do not dump all categories into the final answer. Use them to find issues, then report only code-grounded results.
-
-### Step 6: Recommend Minimal Fixes and Forge Tests
-
-For each finding:
-
-- Prefer proven libraries, project-installed dependencies, or established patterns over custom logic when applicable.
-- If a library component is the right fix, identify the import, inheritance/composition change, required override or initializer, and any storage-layout implication.
-- Do not copy external library source into the user's contract.
-- Suggest the smallest fix that restores the broken invariant.
-- Suggest at least one Forge regression test that fails before the fix and passes after it.
-- Add edge-case or invariant test guidance when the bug is accounting, sequencing, or state-machine related.
-
-## Foundry Review Guidance
-
-Prefer project files over abstract reasoning. Useful verification commands include:
-
-- `forge test -vvvv`
-- `forge test --match-contract <ContractName> -vvvv`
-- `forge test --match-test <TestName> -vvvv`
-
-When the project depends on forked state or external systems, call out any missing RPC, fork block, environment variable, or dependency that limits review confidence.
+High and Critical findings require a verifiable path or PoC. Do not lower severity merely because an attack uses flash liquidity or is operationally complex if realistic impact remains severe.
 
 ## Output Contract
 
-Default review output should follow this structure:
+Lead with material findings. Then provide enough model and coverage information to make the conclusions auditable.
 
-### 1. Scope and Model
+### Targeted Review Output
 
-- Reviewed files
-- Relevant dependencies and neighboring contracts
-- Actors, assets, major flows, and key assumptions
-- Invariants or business rules used during review
+1. Findings ordered by severity.
+2. Scope and reviewed files.
+3. Relevant protocol model, asset flows, trust assumptions, and invariants.
+4. Tests/PoCs actually performed and their results.
+5. Residual risks, unavailable evidence, and unreviewed surfaces.
 
-### 2. Findings
+### Full Protocol Audit Output
 
-Order findings by severity: `Critical`, `High`, `Medium`, `Low`.
+1. Executive summary and overall risk.
+2. Protocol overview and architecture.
+3. Asset flow and accounting model.
+4. Roles, trust assumptions, and maximum impact.
+5. Key invariants.
+6. Attack surface and methodology coverage.
+7. Findings ordered by severity.
+8. Unit, fuzz, invariant, fork, and PoC testing actually performed.
+9. Unresolved risks, exclusions, and unverifiable assumptions.
 
-For each finding, include:
+If no material issue is found, say so explicitly; do not imply the absence of all risk. Include residual risks, uncovered surfaces, and the invariants that still need stronger tests.
 
-- Severity
-- Affected code
-- Broken invariant or business rule
-- Exploit path or failure path
-- Impact
-- Remediation
-- Suggested Forge test
-- Confidence when useful
+## Completion Gate
 
-### 3. No Material Issues Case
+Before calling a targeted review complete, confirm that the selected scope, all reachable value/call paths, applicable security lenses, candidate validation, and coverage limits are addressed.
 
-If no material issue is found, say so explicitly. Then include:
-
-- Residual risks
-- Uncovered surfaces
-- Business rules or invariants that still need tests
+Before calling a full protocol audit complete, use the completion checklist in [Protocol Audit Methodology](references/protocol-audit-methodology.md). Every phase must be completed or explicitly marked blocked/non-applicable with evidence. A severe early finding is not a stopping condition.
 
 ## Response Style
 
-- Be concise and direct
-- Lead with findings, not background
-- Do not turn the response into a generic security encyclopedia
-- Do not ask the user to inspect files you can inspect yourself
-- State uncertainty and assumptions clearly
-- If code looks acceptable but the business model or test surface is weak, call that out
+- Be concise, skeptical, and file-grounded.
+- Lead with findings rather than generic background.
+- Do not ask the user to inspect files you can inspect yourself.
+- Separate confirmed findings, unresolved risks, and design/trust assumptions.
+- State uncertainty, scope limitations, and unexecuted tests clearly.
+- Do not dump a generic vulnerability encyclopedia into the final answer.

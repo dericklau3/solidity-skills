@@ -26,6 +26,8 @@ skills/
     SKILL.md
   solidity-foundry-security-review/
     SKILL.md
+    references/
+      protocol-audit-methodology.md
 ```
 
 ## 技能定位
@@ -66,6 +68,7 @@ skills/
 - 在功能开发后做合约 hardening
 - 在合并前进行代码审查
 - 分析 vault、token 集成、升级代理、oracle 依赖和低级调用等风险面
+- 区分定向安全审查与完整协议审计，并在完整审计中覆盖资产流、会计、经济模型、攻击路径、Fuzz 和 Invariant 等协议级方法
 
 ## 设计原则
 
