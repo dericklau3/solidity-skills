@@ -2,13 +2,14 @@
 
 一个用于存放 Solidity 相关 Codex 技能的仓库。
 
-foundry-test -> solidity-foundry-code-review -> foundry-post-dev-optimization -> solidity-foundry-security-review -> doc-natspec
+foundry-test -> solidity-foundry-code-review -> semantic-code-pruning -> foundry-post-dev-optimization -> solidity-foundry-security-review -> doc-natspec
 
-当前仓库内置五个技能：
+当前仓库内置六个技能：
 
 - `doc-natspec`：用于在 Solidity / Foundry 开发完成后补齐和修复 NatSpec 注释，并用 `forge doc` 做最终验证
 - `foundry-test`：用于在 Foundry 项目开发完成后补齐和强化测试，优先补高价值单元测试，并在必要时增加集成、fuzz 与 invariant 测试
 - `solidity-foundry-code-review`：用于在 Foundry 项目功能开发后或合并前做工程质量 code review，关注正确性、边界条件、接口设计、集成假设、可维护性和测试缺口
+- `semantic-code-pruning`：用于做通用语义级代码裁剪，删除可证明不增加可观察行为的冗余逻辑，重点处理 AI 生成代码中的 no-op、过度防御和薄 wrapper
 - `foundry-post-dev-optimization`：用于在 Foundry 项目开发完成后做 gas、代码结构和可维护性优化，低风险项直接修，风险较高的项保留为建议
 - `solidity-foundry-security-review`：用于在 Foundry 项目中进行面向代码上下文的安全审查，强调先读项目、再做结论
 
@@ -21,6 +22,8 @@ skills/
   foundry-test/
     SKILL.md
   solidity-foundry-code-review/
+    SKILL.md
+  semantic-code-pruning/
     SKILL.md
   foundry-post-dev-optimization/
     SKILL.md
@@ -62,6 +65,14 @@ skills/
 - 发现测试缺口、部署假设、初始化顺序和调用路径风险
 - 输出基于文件和行号的 review findings，并把安全、测试或优化专项问题路由到对应 skill
 
+`semantic-code-pruning` 适用于以下场景：
+
+- Review 或编辑显得臃肿、冗余、过度防御或 AI 生成痕迹明显的代码
+- 删除死赋值、未使用返回值、重复 guard、透传临时变量、不可达分支、薄 wrapper 或语义 no-op
+- 在删除前从调用图、数据流、控制流、类型约束、状态不变量、接口契约和副作用边界中证明冗余
+- 检查裁剪不会改变公开 API/ABI、序列化格式、event/log、错误行为、storage/schema layout、运维信号或框架生命周期约定
+- 对安全边界、兼容性边界、生成代码、migration、日志审计和有真实契约的未来兼容逻辑保持保守
+
 `solidity-foundry-security-review` 适用于以下场景：
 
 - 对 Foundry Solidity 项目做安全检查
@@ -89,6 +100,10 @@ $skill-installer install https://github.com/dericklau3/solidity-skills/tree/main
 
 ```
 $skill-installer install https://github.com/dericklau3/solidity-skills/tree/main/skills/solidity-foundry-code-review
+```
+
+```
+$skill-installer install https://github.com/dericklau3/solidity-skills/tree/main/skills/semantic-code-pruning
 ```
 
 ```
