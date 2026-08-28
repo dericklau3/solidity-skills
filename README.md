@@ -2,14 +2,13 @@
 
 一个用于存放 Solidity 相关 Codex 技能的仓库。
 
-foundry-test -> solidity-foundry-code-review -> semantic-code-pruning -> foundry-post-dev-optimization -> solidity-foundry-security-review -> doc-natspec
+foundry-test -> semantic-code-pruning -> foundry-post-dev-optimization -> solidity-foundry-security-review -> doc-natspec
 
-当前仓库内置六个技能：
+当前仓库内置五个技能：
 
 - `doc-natspec`：用于在 Solidity / Foundry 开发完成后补齐和修复 NatSpec 注释，并用 `forge doc` 做最终验证
 - `foundry-test`：用于在 Foundry 项目开发完成后补齐和强化测试，优先补高价值单元测试，并在必要时增加集成、fuzz 与 invariant 测试
-- `solidity-foundry-code-review`：用于在 Foundry 项目功能开发后或合并前做工程质量 code review，关注正确性、边界条件、接口设计、集成假设、可维护性和测试缺口
-- `semantic-code-pruning`：用于做通用语义级代码裁剪，删除可证明不增加可观察行为的冗余逻辑，重点处理 AI 生成代码中的 no-op、过度防御和薄 wrapper
+- `semantic-code-pruning`：用于做通用语义级代码裁剪，按 review、分级、编辑和验证流程删除可证明不增加可观察行为的冗余逻辑
 - `foundry-post-dev-optimization`：用于在 Foundry 项目开发完成后做 gas、代码结构和可维护性优化，低风险项直接修，风险较高的项保留为建议
 - `solidity-foundry-security-review`：用于在 Foundry 项目中进行面向代码上下文的安全审查，强调先读项目、再做结论
 
@@ -20,8 +19,6 @@ skills/
   doc-natspec/
     SKILL.md
   foundry-test/
-    SKILL.md
-  solidity-foundry-code-review/
     SKILL.md
   semantic-code-pruning/
     SKILL.md
@@ -58,20 +55,13 @@ skills/
 - 优先复用项目已有 benchmark、snapshot 或 gas report 流程验证优化收益
 - 在不改变预期行为的前提下收敛代码质量和执行成本
 
-`solidity-foundry-code-review` 适用于以下场景：
-
-- 在功能开发后或合并前做 Solidity / Foundry 工程质量审查
-- 检查正确性、边界条件、状态流、接口设计和依赖集成是否符合预期
-- 发现测试缺口、部署假设、初始化顺序和调用路径风险
-- 输出基于文件和行号的 review findings，并把安全、测试或优化专项问题路由到对应 skill
-
 `semantic-code-pruning` 适用于以下场景：
 
-- Review 或编辑显得臃肿、冗余、过度防御或 AI 生成痕迹明显的代码
-- 删除死赋值、未使用返回值、重复 guard、透传临时变量、不可达分支、薄 wrapper 或语义 no-op
-- 在删除前从调用图、数据流、控制流、类型约束、状态不变量、接口契约和副作用边界中证明冗余
-- 检查裁剪不会改变公开 API/ABI、序列化格式、event/log、错误行为、storage/schema layout、运维信号或框架生命周期约定
-- 对安全边界、兼容性边界、生成代码、migration、日志审计和有真实契约的未来兼容逻辑保持保守
+- 对显得臃肿、冗余、过度防御或 AI 生成痕迹明显的代码做语义级裁剪
+- 按 Safe Direct Edits、Conditional Edits、Suggest-Only Edits 区分直接修改、强验证修改和只建议不修改
+- 从 caller、数据流、控制流、类型约束、状态不变量、接口契约和副作用分析中证明每个非平凡删除
+- 默认保持范围收敛，不把裁剪扩大成格式化、宽泛重构、安全审计或优化专项
+- 对公开契约、安全边界、运维信号、生成代码、migration 和框架生命周期逻辑保持保守
 
 `solidity-foundry-security-review` 适用于以下场景：
 
@@ -96,10 +86,6 @@ $skill-installer install https://github.com/dericklau3/solidity-skills/tree/main
 
 ```
 $skill-installer install https://github.com/dericklau3/solidity-skills/tree/main/skills/foundry-test
-```
-
-```
-$skill-installer install https://github.com/dericklau3/solidity-skills/tree/main/skills/solidity-foundry-code-review
 ```
 
 ```

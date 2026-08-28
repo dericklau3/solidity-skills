@@ -6,94 +6,188 @@ metadata:
   author: derick
 ---
 
-# Semantic Code Pruning
+# Prune Semantic No-Op Code
 
-## Purpose
+## Core Workflow
 
-Use this skill to remove code that adds no observable behavior. This is not a style pass, minification pass, or general refactor. It is a semantic-preservation pass: every deletion must be backed by evidence that the program behaves the same for all supported callers and inputs.
+### Understand the Request Before Editing
 
-Prefer a smaller change that is provably behavior-preserving over a clever rewrite that merely looks cleaner.
+Use this skill when the user wants code made smaller by removing redundant, dead, over-defensive, or AI-boilerplate logic.
 
-## Pruning Standard
+This skill is for behavior-preserving semantic pruning. It is not a style sweep, formatter pass, broad refactor, minification pass, or speculative architecture cleanup.
 
-A line, branch, helper, return value, or guard is removable only when all three conditions hold:
+### Read the Project First
 
-1. Its result is already guaranteed by surrounding control flow, types, state, invariants, caller contracts, or earlier validation.
-2. Removing it does not change externally observable behavior, including return values, errors, logs, emitted events, database writes, network calls, storage layout, timing-sensitive side effects, metrics, or public API shapes.
-3. The proof can be explained from code evidence, not from taste, naming, or the fact that tests do not currently cover the case.
+Before making pruning edits:
 
-If the proof depends on assumptions outside the repository, configuration, runtime environment, or public contract, treat the change as suggest-only unless the user confirms those assumptions.
+1. Read the files in scope and the nearest README, package, build, or framework configuration when they explain runtime behavior.
+2. Search for every caller, override, implementation, test, fixture, script, generated client, and public export that may observe the code being pruned.
+3. Trace the relevant data flow from assignment to observation: return value, persisted state, emitted/logged output, external call, UI render, API response, or test assertion.
+4. Trace the relevant control flow: guards, modifiers, earlier validation, exception paths, pattern matches, state-machine transitions, and framework lifecycle hooks.
+5. Check whether public contracts depend on the current shape: ABI/API signatures, schemas, serialized fields, event or log format, error type, CLI output, migrations, or generated code.
+6. Identify the strongest existing verification path: focused tests, type checks, build, snapshots, traces, gas reports, or framework-specific checks.
 
-## Evidence To Gather
+If a required caller, contract, schema, generated artifact, or verification path cannot be inspected, say so explicitly and do not treat the pruning as fully proven.
 
-Before editing, inspect enough context to prove the redundancy:
+### Default Scope
 
-- Call graph: who can reach this code, with which arguments, and through which validation path.
-- Data flow: where the value is assigned, transformed, observed, returned, persisted, or passed to side-effecting code.
-- Control flow: whether earlier branches, exceptions, guards, pattern matches, or state-machine transitions make the code unreachable or duplicate.
-- Contracts and interfaces: whether signatures, overrides, serialization formats, schemas, ABI/API compatibility, or generated clients depend on the current shape.
-- Side effects: whether the code touches IO, storage, logs, telemetry, locks, caches, randomness, time, external calls, callbacks, or lifecycle hooks.
-- Test and runtime evidence: which focused tests, builds, type checks, snapshots, or traces can confirm the behavior after pruning.
+By default, inspect only the files or behavior the user mentions.
 
-When the project has a domain-specific framework, respect its hidden contracts. Examples include React hook rules, database migration ordering, Solidity upgradeable storage layout, protocol event shapes, public SDK APIs, CLI output, and generated-code boundaries.
+If the user asks for a general pruning pass, inspect application or contract source first, then nearby tests and public interfaces. Exclude vendored dependencies, generated code, migrations, lockfiles, snapshots, and formatting-only churn unless the user explicitly includes them.
 
-## What Usually Can Be Removed
+### Pruning Categories
 
-| Candidate | Delete only when |
-|---|---|
-| Redundant assignment | Every reaching path already gives the variable the same value, and no observer depends on the write itself. |
-| Unused return value | No caller consumes it, it is not required by an interface/override/protocol, and removing it does not change public API shape. |
-| Duplicated guard | The same condition has already been enforced on every path, with equivalent error semantics and no intentionally different diagnostic message. |
-| Pass-through temporary | The variable is assigned once, read once, has no debugging or documentation value, and inlining does not obscure domain meaning. |
-| Dead branch | The branch is unreachable under current preconditions, state-machine rules, type constraints, or exhaustive matching, and is not intentionally defensive for external input or future states. |
-| Thin wrapper | The helper only renames one call, adds no invariant, boundary, logging, retry, authorization, normalization, or domain vocabulary. |
-| Redundant conversion | The conversion cannot change representation, precision, ownership, encoding, or validation state. |
-| Repeated calculation | Reusing or deleting it does not affect evaluation order, overflow/rounding, lazy execution, memoization, or side effects. |
+Review opportunities across:
 
-## What To Preserve
+- dead assignments and overwritten values
+- unused return values and unused outputs
+- duplicated guards or already-enforced checks
+- pass-through temporaries with no readability or debugging value
+- unreachable branches under proven preconditions or state transitions
+- thin wrappers that add no boundary, invariant, retry, logging, authorization, normalization, or domain vocabulary
+- redundant conversions, repeated calculations, or no-op normalizations
+- over-defensive branches introduced by AI-generated code without a reachable purpose
 
-Do not delete code merely because it looks noisy. Preserve code when it carries any of these responsibilities:
+Do not prune mechanically. A line is removable only when its absence preserves behavior for every supported caller and input.
 
-- Public contract: API/ABI shape, override compatibility, serialized output, CLI output, event/log format, error type, or revert/error selector.
-- Safety boundary: validation of untrusted input, permissions, asset movement, auth/session checks, reentrancy/locking, concurrency coordination, or capability isolation.
-- Operational boundary: logging, metrics, audit trails, tracing, cleanup, rollback, retries, rate limiting, cache invalidation, migration steps, or feature flags.
-- Domain meaning: names or wrappers that encode business language, compliance rules, accounting categories, protocol states, or team conventions.
-- Future-proofing with a real contract: guards for documented configuration ranges, version skew, external integrations, upgrade paths, or data migrations.
-- Generated or framework-owned code: code that must match a schema, code generator, lifecycle hook, reflection system, or framework convention.
+## Pruning Tiers
 
-If preserving the code is correct but it looks suspicious, consider adding or improving a narrow comment only when the invariant is non-obvious and the repository style supports such comments.
+### 1. Safe Direct Edits
 
-## Workflow
+Directly patch low-risk pruning when the proof is local and complete.
 
-1. Identify the suspected no-op and classify its type: assignment, branch, guard, temporary, helper, return value, conversion, or repeated calculation.
-2. Prove why it cannot affect behavior by citing the relevant caller path, invariant, type rule, state transition, interface contract, or side-effect analysis.
-3. Check compatibility boundaries: public API, ABI, storage/schema layout, events/logs, error behavior, generated clients, migrations, and tests.
-4. Apply the smallest deletion or simplification that preserves behavior. Avoid opportunistic rewrites nearby unless they are required by the pruning.
-5. Run the narrowest meaningful verification first, then broader checks when the touched code is shared or externally visible.
-6. Report what was removed, why it was safe, what was intentionally preserved, and which verification passed or failed.
+Common examples:
 
-## Risk Levels
+- deleting an assignment that is overwritten before any read
+- inlining a variable assigned once and read once when the name carries no domain meaning
+- removing an unreachable private branch after all reaching callers enforce the same precondition
+- removing a private return value when every caller ignores it and no interface requires it
+- deleting a wrapper that only calls one private helper and adds no invariant, side effect, or useful vocabulary
 
-- Safe to edit directly: private implementation detail, no side effects, proof is local and complete, tests or type checks cover the affected behavior.
-- Edit only with strong verification: shared helper, public-facing behavior through indirect callers, framework lifecycle code, concurrency-sensitive paths, numeric/accounting logic, or serialization boundaries.
-- Suggest only: public API/ABI changes, storage/schema layout changes, migration deletion, security guard removal, audit/logging removal, compatibility behavior, or changes that depend on undocumented assumptions.
+Only patch these when no public contract, side effect, diagnostic behavior, or framework convention depends on the current code.
 
-When in doubt, leave the code in place and explain the uncertainty. A correct non-deletion is better than a tidy regression.
+### 2. Conditional Edits
 
-## Domain Notes
+Patch only when the behavior is clear and verification is strong enough.
 
-For Solidity and Foundry projects, preserve external/public function signatures, event shapes, custom error selectors, storage variable order, initializer arguments, modifiers, access control, upgradeable storage layout, and revert behavior unless the user explicitly requests a broader compatibility change. Keep guards around external input, asset movement, oracle/pair assumptions, authority checks, callbacks, and reentrancy boundaries unless the invariant is proven across all reachable entrypoints. Prefer `forge fmt --check`, `forge build`, and focused `forge test` for touched behavior.
+Common examples:
 
-For TypeScript, JavaScript, Go, Python, and similar application code, be careful with reflection, serialization, decorators, dynamic imports, framework lifecycle functions, dependency injection, generated types, public exports, and logging/telemetry that may be consumed outside the immediate code path.
+- merging duplicated branches with equivalent side effects and error behavior
+- deleting defensive checks around internal state after every mutation path is proven
+- simplifying repeated parsing, serialization, or normalization code
+- pruning compatibility branches for documented, unsupported versions or modes
+- removing redundant numeric calculations where rounding, overflow, ordering, and precision are fully understood
+
+Only patch these when:
+
+- the invariant is proven from code, not inferred from naming or current test coverage
+- error types, messages, logs, events, metrics, and evaluation order remain equivalent where they are observable
+- public API, schema, storage, migration, generated-client, and framework lifecycle boundaries are not changed
+- available tests or checks cover the affected behavior strongly enough
+
+### 3. Suggest-Only Edits
+
+Leave these as recommendations unless the user explicitly approves a broader compatibility or cleanup change.
+
+Common examples:
+
+- changing public API, ABI, CLI output, serialized fields, or database schemas
+- deleting migrations, compatibility adapters, feature flags, audit logs, telemetry, or rollback/cleanup code
+- removing validation for untrusted input, authorization, asset movement, concurrency, locking, callbacks, or reentrancy
+- pruning generated code or code that must match a schema, reflection system, decorator, dependency injection container, or lifecycle hook
+- deleting future-proofing that protects documented configuration ranges, version skew, or external integrations
+- removing code only because it is unused in the current tests
+
+When the proof is incomplete, preserve the code and explain exactly what evidence is missing.
+
+## Editing Rules
+
+### Prove Before Patching
+
+For each non-trivial deletion, first prove why the code cannot affect observable behavior. Use caller paths, data flow, control flow, type constraints, state invariants, interface contracts, and side-effect analysis as evidence.
+
+### Patch The Smallest Proven Change
+
+Delete only the redundant code. Do not opportunistically rewrite nearby logic, rename symbols, rearrange files, or change formatting outside the touched lines unless the pruning requires it.
+
+### Preserve Observable Boundaries
+
+Treat the following as pruning boundaries:
+
+- public APIs, ABIs, exports, overrides, schemas, serialized output, CLI output, generated clients
+- storage or database layout, migration history, event/log/error shapes, metrics, tracing, audit trails
+- input validation, access control, auth/session checks, asset movement, locks, concurrency, cleanup, rollback
+- framework lifecycle hooks, reflection, decorators, dependency injection, dynamic imports, generated code
+- domain names that encode business meaning, accounting categories, protocol states, or team conventions
+
+If code looks noisy but protects one of these boundaries, leave it in place or suggest a clearer comment instead of deleting it.
+
+### Stop On Ambiguity
+
+If deletion could change behavior, compatibility, diagnostics, execution order, persistence, or observability in a non-trivial way, do not guess. Name the suspicious code, explain the risk, and leave it as a recommendation.
+
+### Keep Scope Tight
+
+Do not turn a pruning pass into a broad refactor, security audit, optimization campaign, formatting sweep, or test rewrite. Route those separately when the user asks for them.
+
+## Domain-Specific Boundaries
+
+For Solidity and Foundry projects, preserve external/public function signatures, event shapes, custom error selectors, storage variable order, initializer arguments, modifiers, access control, upgradeable storage layout, and revert behavior unless the user explicitly requests a broader compatibility change. Keep guards around external input, asset movement, oracle/pair assumptions, authority checks, callbacks, and reentrancy boundaries unless the invariant is proven across all reachable entrypoints.
+
+For TypeScript, JavaScript, Go, Python, and application code, be careful with reflection, serialization, decorators, dynamic imports, framework lifecycle functions, dependency injection, generated types, public exports, and logging or telemetry that may be consumed outside the immediate code path.
+
+## Verification
+
+Use the strongest existing project-specific verification path first.
+
+Priority:
+
+1. focused tests or regression tests for the touched behavior
+2. type checks, linters, or framework checks that validate the touched contract
+3. builds, snapshots, generated-client checks, schema checks, or trace comparisons
+4. broader test suites when the touched code is shared or externally visible
+
+For Solidity and Foundry projects, prefer touched-file `forge fmt --check`, `forge build`, and focused `forge test` for affected flows.
+
+If verification fails, explain whether the failure appears caused by:
+
+- the pruning change
+- a pre-existing repository issue
+- project configuration or dependency problems unrelated to the pruning patch
+
+Do not claim the pruning is complete without reporting the verification result.
 
 ## Output Contract
 
-For each non-trivial pruning change, include:
+Default final output should include:
 
-- Removed code: the file/function and the kind of redundancy.
-- Proof: the invariant or caller contract that makes it redundant.
-- Boundary check: the API, side-effect, compatibility, or framework boundary considered.
-- Verification: the exact checks run and their result.
-- Deferred items: suspicious code left unchanged because the proof was incomplete or the risk was too high.
+- reviewed files and related callers
+- pruning scope
+- implemented deletions or simplifications
+- proof that each non-trivial deletion preserves behavior
+- suspicious code intentionally left unchanged
+- risk notes
+- verification result
 
-Keep the final answer concise, but do not omit the proof for behavior-sensitive deletions.
+Separate the pruning summary into:
+
+- removed semantic no-ops
+- preserved boundaries
+- deferred recommendations
+
+For skipped items, include the reason:
+
+- proof incomplete
+- public contract risk
+- safety or operational boundary
+- generated or framework-owned code
+- compatibility or migration risk
+- insufficient verification confidence
+
+## Response Style
+
+- Be direct
+- Stay file-grounded
+- Optimize for behavior-preserving deletion, not clever compression
+- Do not cite tests alone as proof of redundancy
+- Do not blur the boundary between pruning, optimization, security review, and refactoring
