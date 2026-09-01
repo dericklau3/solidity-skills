@@ -2,14 +2,13 @@
 
 一个用于存放 Solidity 相关 Codex 技能的仓库。
 
-foundry-test -> semantic-code-pruning -> foundry-post-dev-optimization -> solidity-foundry-security-review -> doc-natspec
+foundry-test -> foundry-post-dev-optimization -> solidity-foundry-security-review -> doc-natspec
 
-当前仓库内置五个技能：
+当前仓库内置四个技能：
 
 - `doc-natspec`：用于在 Solidity / Foundry 开发完成后补齐和修复 NatSpec 注释，并用 `forge doc` 做最终验证
 - `foundry-test`：用于在 Foundry 项目开发完成后补齐和强化测试，优先补高价值单元测试，并在必要时增加集成、fuzz 与 invariant 测试
-- `semantic-code-pruning`：用于做通用语义级代码裁剪，按 review、分级、编辑和验证流程删除可证明不增加可观察行为的冗余逻辑
-- `foundry-post-dev-optimization`：用于在 Foundry 项目开发完成后做 gas、代码结构和可维护性优化，低风险项直接修，风险较高的项保留为建议
+- `foundry-post-dev-optimization`：用于在 Foundry 项目开发完成后做 gas、语义 no-op 裁剪、代码结构和可维护性优化，低风险项直接修，风险较高的项保留为建议
 - `solidity-foundry-security-review`：用于在 Foundry 项目中进行面向代码上下文的安全审查，强调先读项目、再做结论
 
 ## 当前内容
@@ -19,8 +18,6 @@ skills/
   doc-natspec/
     SKILL.md
   foundry-test/
-    SKILL.md
-  semantic-code-pruning/
     SKILL.md
   foundry-post-dev-optimization/
     SKILL.md
@@ -50,18 +47,11 @@ skills/
 `foundry-post-dev-optimization` 适用于以下场景：
 
 - Solidity / Foundry 功能开发完成后做专项优化收尾
-- 默认扫描 `src/` 下所有合约，排除接口，识别 gas、结构和可维护性优化点
+- 默认扫描 `src/` 下所有合约，排除接口，识别 gas、语义 no-op、结构和可维护性优化点
 - 低风险优化直接落地，中高风险优化按条件执行或保留为建议
 - 优先复用项目已有 benchmark、snapshot 或 gas report 流程验证优化收益
-- 在不改变预期行为的前提下收敛代码质量和执行成本
-
-`semantic-code-pruning` 适用于以下场景：
-
-- 对显得臃肿、冗余、过度防御或 AI 生成痕迹明显的代码做语义级裁剪
-- 按 Safe Direct Edits、Conditional Edits、Suggest-Only Edits 区分直接修改、强验证修改和只建议不修改
+- 在不改变预期行为的前提下收敛代码质量、执行成本和冗余语义
 - 从 caller、数据流、控制流、类型约束、状态不变量、接口契约和副作用分析中证明每个非平凡删除
-- 默认保持范围收敛，不把裁剪扩大成格式化、宽泛重构、安全审计或优化专项
-- 对公开契约、安全边界、运维信号、生成代码、migration 和框架生命周期逻辑保持保守
 
 `solidity-foundry-security-review` 适用于以下场景：
 
@@ -86,10 +76,6 @@ $skill-installer install https://github.com/dericklau3/solidity-skills/tree/main
 
 ```
 $skill-installer install https://github.com/dericklau3/solidity-skills/tree/main/skills/foundry-test
-```
-
-```
-$skill-installer install https://github.com/dericklau3/solidity-skills/tree/main/skills/semantic-code-pruning
 ```
 
 ```
