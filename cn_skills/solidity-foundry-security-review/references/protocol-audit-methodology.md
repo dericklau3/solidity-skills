@@ -2,6 +2,8 @@
 
 完整协议审计必须完整阅读本文件。定向审查只读取所选范围可达的章节，并记录哪些攻击面未审查。
 
+本方法仅用于只读静态分析。不编写 PoC、不修改项目文件、不进行本地验证。现有测试仅作为阅读上下文；交付发现和文字修复建议。
+
 ## 强制审计顺序
 
 按以下顺序执行，避免实现层漏洞模式干扰协议级风险分析：
@@ -25,10 +27,8 @@
 17. Token 兼容性
 18. 底层 EVM 与 Assembly
 19. DoS 与 Griefing
-20. Fuzz Testing
-21. Stateful Invariant Testing
-22. 运维与管理员安全
-23. 候选问题验证与 Findings
+20. 运维与管理员安全
+21. 候选问题验证与 Findings
 
 发现严重问题后不得停止。完成所有适用阶段；受阻或不适用的阶段必须给出具体理由。
 
@@ -39,7 +39,7 @@
 - **入口清单**：外部可达函数、调用者假设、生命周期步骤、移动的价值、修改的关键状态、外部调用和可达特权路径。
 - **资产流表**：资产、来源、托管方、会计权威、转换公式/单位、正常去向、应急/特权去向，以及直接转账/Donation 行为。
 - **角色矩阵**：角色、直接能力、通过共享 Helper 或 Role Admin 产生的间接能力、最大影响和预期信任假设。
-- **Invariant 映射**：Invariant、可能影响它的操作、攻击者可控变量、外部依赖、边界值，以及验证它的测试或推理。
+- **Invariant 映射**：Invariant、可能影响它的操作、攻击者可控变量、外部依赖、边界值，以及支撑它的源码证据和分析。
 - **外部依赖映射**：依赖项、依赖的服务/价值、谁能影响输出、Revert/Pause/Upgrade/过期行为、Callback 表面，以及失败期间用户能否退出。
 - **候选问题台账**：疑似问题、被破坏规则、参与者、前置条件、路径、影响、现有 Guard、证据状态，以及最终归类为 Finding、未解决风险或已排除。
 
@@ -93,7 +93,7 @@
 
 ## 4. 业务逻辑与状态机
 
-分析完整生命周期，不要孤立审查单个函数。测试正常、重排、重复、跳过、中断和跨用户序列，例如：
+分析完整生命周期，不要孤立审查单个函数。分析正常、重排、重复、跳过、中断和跨用户序列，例如：
 
 - deposit → mint → transfer share → redeem；
 - deposit → borrow → price change → liquidate；
@@ -123,7 +123,7 @@
 
 识别资产、份额、Supply、Principal、Debt、Borrow、Interest、Reward、Fee 和 Reserve 的权威变量。追踪每次增加、减少、清零、实现和转移。
 
-先确定实际余额还是内部会计是权威来源，再比较两者。重点测试：
+先确定实际余额还是内部会计是权威来源，再比较两者。重点检查：
 
 - 重复、遗漏或错误清零；
 - 外部调用和失败前后的状态更新；
@@ -149,7 +149,7 @@
 - Dust 能否锁死、被盗或用于攻击；
 - 0、1 Wei、最小有效值、边界 ±1、大值和最大支持值的行为。
 
-对 6 位 Token、8 位 Feed、18 位内部精度等混合 Decimals 做明确量纲分析，同时测试单向转换和往返转换。
+对 6 位 Token、8 位 Feed、18 位内部精度等混合 Decimals 做明确量纲分析，同时分析单向转换和往返转换。
 
 ## 8. 经济模型
 
@@ -165,7 +165,7 @@
 
 检查新鲜度、Heartbeat、Round 完整性、正负/零值、Decimals、Sequencer Downtime、偏差限制、更新延迟、Pause/Fallback、权限、来源切换、循环依赖和单位一致性。
 
-除非协议证明安全，否则把 DEX Spot Price 视为可操纵。测试 Flash Swap、大额交易、低流动性、Donation、LP 操纵和同交易读写影响。追踪到抵押品、借款额度、清算、Mint/Redeem、份额和奖励。
+除非协议证明安全，否则把 DEX Spot Price 视为可操纵。分析 Flash Swap、大额交易、低流动性、Donation、LP 操纵和同交易读写影响。追踪到抵押品、借款额度、清算、Mint/Redeem、份额和奖励。
 
 ## 10. 外部协议集成
 
@@ -220,7 +220,7 @@
 
 把闪电流动性视为攻击者能原子使用巨额资本，而不是漏洞本身。用临时大余额重新检查 Oracle、Voting、Reward、Share Price、Liquidity、Collateral、Liquidation、Accounting 和 Token Price。
 
-测试 borrow → manipulate → trigger protocol action → unwind → repay。同交易现实攻击不能仅因为使用闪电流动性而被忽略或降级。
+分析 borrow → manipulate → trigger protocol action → unwind → repay。同交易现实攻击不能仅因为使用闪电流动性而被忽略或降级。
 
 ## 16. MEV 与交易排序
 
@@ -246,29 +246,17 @@
 
 检查无界循环、攻击者控制的数组/Storage 增长、恶意 Revert、Gas Exhaustion、Dust Position、强制转入、Blocked Recipient、Callback、全局锁和外部依赖失败。
 
-衡量攻击成本、可重复性、影响范围、持续时间和恢复路径。即使攻击者不直接获利，低成本阻塞整个协议也可能是实质性问题。区分单用户自我 DoS 与协议级可用性损失。
+根据可用代码和证据评估攻击成本、可重复性、影响范围、持续时间和恢复路径。即使攻击者不直接获利，低成本阻塞整个协议也可能是实质性问题。区分单用户自我 DoS 与协议级可用性损失。
 
-## 20. Fuzz Testing
-
-对 deposit/withdraw、mint/redeem、borrow/repay/liquidate、swap、claim、stake、unstake 等关键数学和状态转换使用 Foundry Fuzz Test。
-
-围绕安全性质设计 Assertion，不要只追求随机输入数量。覆盖 0、1、最小有效值、边界 ±1、大值、最大值、Decimals 组合和有意义的关联输入。Fuzz 发现异常后，缩减为确定性回归 Case，并在称为漏洞前分析 Root Cause 和 Impact。
-
-## 21. Stateful Invariant Testing
-
-用 Handler 模拟真实的多用户、多函数、长序列行为。按适用情况包括 deposit、withdraw、mint、redeem、borrow、repay、transfer、claim、stake、unstake、liquidation、时间变化、价格变化和特权操作。
-
-优先验证资产守恒、用户权益、Share/Debt/Reward/Fee Accounting、Solvency、协议余额和可恢复性。必要时用 Ghost Variable 表达预期净流量。Bound 输入时不要排除正在审查的边界条件。
-
-## 22. 运维与管理员安全
+## 20. 运维与管理员安全
 
 评估 Pause、Emergency Withdraw、Oracle Fallback、Rate/Withdraw Limit、Multisig、Timelock、Monitoring 假设、Upgrade Delay 和恢复流程。
 
-模拟 Admin Key 泄露、Oracle 过期、外部协议 Pause/Upgrade、DEX 无流动性、Token Blacklist/Pause 和 Multisig 失陷。验证 Pause 后哪些操作仍可用、用户能否退出、Emergency 路径是否保留会计、Timelock 能否绕过，以及 Guardian/Rate Limit 是否真正限制损失。
+分析 Admin Key 泄露、Oracle 过期、外部协议 Pause/Upgrade、DEX 无流动性、Token Blacklist/Pause 和 Multisig 失陷。验证 Pause 后哪些操作仍可用、用户能否退出、Emergency 路径是否保留会计、Timelock 能否绕过，以及 Guardian/Rate Limit 是否真正限制损失。
 
-## 23. 候选问题验证与 Findings
+## 21. 候选问题验证与 Findings
 
-没有 Root Cause、可达攻击/失败路径和 Impact，不得把候选问题正式化。验证依赖的准确行为和所有现有 Guard。对实质性问题优先提供最小 Foundry PoC、具体状态轨迹、数值示例或数学证明。
+没有 Root Cause、可达攻击/失败路径和 Impact，不得把候选问题正式化。验证依赖的准确行为和所有现有 Guard。对实质性问题引用源码位置，解释路径为何可达、影响如何产生。记录证据缺口，不尝试本地复现。
 
 Severity 由 Impact 和 Likelihood 决定，并结合攻击成本、权限、资本、受影响资产/用户、利用复杂度和可恢复性。不要把代码风格报告为安全问题，不要把测试失败直接等同于漏洞，也不要把未证明理论标为 High/Critical。
 
@@ -292,15 +280,13 @@ Severity 由 Impact 和 Likelihood 决定，并结合攻击成本、权限、资
 - [ ] 适用时已审查签名绑定、Nonce/Deadline/Domain 和 Replay 保护。
 - [ ] 已考虑单函数、跨函数、跨合约和 Read-only Reentrancy。
 - [ ] 已考虑闪电流动性和交易排序/MEV 影响。
-- [ ] 已测试协议支持的 Token 行为和兼容性假设。
+- [ ] 已从源码审查协议支持的 Token 行为和兼容性假设。
 - [ ] 存在时已审查底层 Call、Assembly、Delegatecall、Storage、Memory 和 Returndata。
 - [ ] 已分析 DoS/Griefing 成本、范围、持续时间和恢复。
-- [ ] 已执行或具体设计关键数学与边界的 Fuzz Test。
-- [ ] 已对复杂协议执行或具体设计 Stateful Invariant。
 - [ ] 已审查 Pause、Emergency、Timelock、Multisig、Monitoring 和恢复假设。
-- [ ] 每个正式 Finding 都有受影响代码、Root Cause、路径、Impact、修复和回归测试。
-- [ ] 每个 High/Critical Finding 都有可验证路径或 PoC。
-- [ ] 已如实记录实际执行的测试和结果。
+- [ ] 每个正式 Finding 都有受影响代码、Root Cause、路径、Impact 和修复建议。
+- [ ] 每个 High/Critical Finding 都有基于代码的可达路径和具体影响。
+- [ ] 已说明结论来自静态分析，不暗示本地验证。
 - [ ] 已记录排除项、不可用证据、未解决经济风险和未验证的信任/设计假设。
 
 ## 禁止的捷径
@@ -314,5 +300,5 @@ Severity 由 Impact 和 Likelihood 决定，并结合攻击成本、权限、资
 - 假定管理员诚实，除非这是明确的 Trust Assumption；
 - 把无法证明的问题报告为漏洞，或在没有路径与影响时抬高 Severity；
 - 仅因为需要闪电流动性或复杂交易序列就降低 Severity；
-- 为了满足测试而改变协议预期行为；
+- 修改项目文件、编写 PoC 或运行本地验证；
 - 声称并未发生的审查覆盖或命令执行。

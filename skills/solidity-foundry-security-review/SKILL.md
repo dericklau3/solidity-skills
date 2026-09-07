@@ -1,6 +1,6 @@
 ---
 name: solidity-foundry-security-review
-description: "Use when reviewing Solidity contracts or Foundry projects for security and protocol-level risks, including business logic, asset flows, accounting, economic attacks, trust boundaries, integrations, upgradeability, pricing, callbacks, signatures, or low-level EVM behavior."
+description: "Use when a read-only static review of Solidity contracts or Foundry projects is needed for security and protocol-level risks, including business logic, asset flows, accounting, economic attacks, trust boundaries, integrations, upgradeability, pricing, callbacks, signatures, or low-level EVM behavior."
 license: AGPL-3.0-only
 metadata:
   author: derick
@@ -13,6 +13,12 @@ metadata:
 Do not begin with a vulnerability taxonomy. First reconstruct what the protocol promises, how value moves, who can change state, and which properties must always hold. A material finding is a demonstrated violation of a business rule, invariant, or trust assumption—not merely unusual code.
 
 Priority: **business logic > fund safety > accounting > economic attacks > permissions and trust > implementation hazards**.
+
+## Read-Only Scope
+
+This skill performs static review and outputs findings and remediation recommendations only. Do not modify production code, tests, or project configuration; write PoCs or executable reproduction code; or run builds, tests, simulations, forks, deployments, or transactions. Reading existing source, tests, configuration, and supplied artifacts is in scope.
+
+Support conclusions with code locations, reachable conditions, and reasoning about impact. Identify missing evidence and confidence limits; continue reviewing unaffected areas. Do not present static analysis or supplied test results as locally executed validation.
 
 ## Review Modes
 
@@ -70,7 +76,7 @@ Do not reduce the attacker to an honest EOA following the happy path.
 
 - Read `README.md`, `foundry.toml`, docs, target contracts, tests, scripts, and configuration.
 - Identify the contracts in scope and the adjacent components required for complete call paths.
-- Record exclusions, unavailable dependencies, missing RPC/fork state, and unverified design assumptions.
+- Record exclusions, unavailable dependencies, unavailable deployment-state evidence, and unverified design assumptions.
 - For a full audit, inventory all production contracts and externally reachable entrypoints.
 
 ### 2. Build the Protocol Model
@@ -153,21 +159,16 @@ For each candidate:
 3. Trace the exact calls and state changes.
 4. Quantify affected assets, users, accounting drift, liveness loss, or privilege impact where possible.
 5. Challenge the candidate against guards, actual dependency behavior, transaction atomicity, and protocol assumptions.
-6. Build the smallest practical Forge PoC, numerical example, or state-transition proof for material findings.
+6. Cite the source evidence supporting each material finding and distinguish established behavior from assumptions.
 
 If the path or impact cannot be established, lower confidence, classify it as unresolved risk, or discard it. Do not turn style issues or hypothetical discomfort into vulnerabilities.
 
-### 7. Recommend Minimal Fixes and Tests
+### 7. Recommend Minimal Fixes
 
-- Restore the broken invariant with the smallest safe change.
-- Specify what to check, where to check it, and which security property the change restores.
-- Identify required imports, inheritance/composition, overrides, initializers, and storage-layout effects when a library component is appropriate.
-- Suggest or implement a Forge regression test that fails before the fix and passes after it.
-- Use fuzz tests for mathematical boundaries and input combinations.
-- Use stateful invariant tests for multi-user, multi-function, long-sequence accounting and state-machine properties.
-- Do not alter intended protocol behavior merely to make a fuzz or invariant test pass.
-
-Never claim that a test, command, PoC, fork, or tool was executed unless it actually ran successfully. Report missing RPC, fork block, environment, compiler, or dependency constraints.
+- Describe the smallest change that would restore the broken invariant.
+- Specify what should be checked, where, and which security property the recommendation restores.
+- Explain compatibility, accounting, and storage-layout implications when relevant.
+- Keep remediation as written recommendations; do not implement patches or test code.
 
 ## Finding Standard
 
@@ -182,37 +183,16 @@ Each finding must include:
 5. **Root cause** — the code, design, accounting, formula, permission, state update, or integration error.
 6. **Attack path or failure scenario** — ordered prerequisites, calls, state changes, and result.
 7. **Impact** — attacker gain, user/protocol loss, accounting corruption, privilege escalation, or liveness failure.
-8. **Proof** — minimal Forge PoC, concrete values, state trace, or mathematical reasoning when warranted.
-9. **Recommendation** — an executable minimal remediation and the property it restores.
-10. **Suggested regression test**.
+8. **Evidence** — source locations and reasoning supporting the path and impact, with missing evidence stated explicitly.
+9. **Recommendation** — a written description of the minimal remediation and the property it would restore.
 
-High and Critical findings require a verifiable path or PoC. Do not lower severity merely because an attack uses flash liquidity or is operationally complex if realistic impact remains severe.
+High and Critical findings require a code-grounded reachable path and concrete impact. Do not lower severity merely because an attack uses flash liquidity or is operationally complex if realistic impact remains severe.
 
 ## Output Contract
 
-Lead with material findings. Then provide enough model and coverage information to make the conclusions auditable.
+Output findings and remediation recommendations, ordered by severity and following the finding standard above. Include only the scope, assumptions, and evidence limits needed to assess those findings. For a full protocol review, summarize coverage and exclusions without implying dynamic validation.
 
-### Targeted Review Output
-
-1. Findings ordered by severity.
-2. Scope and reviewed files.
-3. Relevant protocol model, asset flows, trust assumptions, and invariants.
-4. Tests/PoCs actually performed and their results.
-5. Residual risks, unavailable evidence, and unreviewed surfaces.
-
-### Full Protocol Audit Output
-
-1. Executive summary and overall risk.
-2. Protocol overview and architecture.
-3. Asset flow and accounting model.
-4. Roles, trust assumptions, and maximum impact.
-5. Key invariants.
-6. Attack surface and methodology coverage.
-7. Findings ordered by severity.
-8. Unit, fuzz, invariant, fork, and PoC testing actually performed.
-9. Unresolved risks, exclusions, and unverifiable assumptions.
-
-If no material issue is found, say so explicitly; do not imply the absence of all risk. Include residual risks, uncovered surfaces, and the invariants that still need stronger tests.
+If no material issue is found, say so explicitly and state the static review's coverage limits. Keep unresolved risks separate from confirmed findings. Do not create test plans, PoCs, executable reproduction code, or patches.
 
 ## Completion Gate
 
@@ -226,5 +206,5 @@ Before calling a full protocol audit complete, use the completion checklist in [
 - Lead with findings rather than generic background.
 - Do not ask the user to inspect files you can inspect yourself.
 - Separate confirmed findings, unresolved risks, and design/trust assumptions.
-- State uncertainty, scope limitations, and unexecuted tests clearly.
+- State uncertainty, scope limitations, and unavailable evidence clearly.
 - Do not dump a generic vulnerability encyclopedia into the final answer.

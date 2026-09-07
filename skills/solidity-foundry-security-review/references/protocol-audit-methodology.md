@@ -2,6 +2,8 @@
 
 Read this file completely for a full protocol audit. For a targeted review, read the sections reachable from the selected scope and record which surfaces were not reviewed.
 
+This methodology is limited to read-only static analysis. Do not write PoCs, change project files, or perform local validation. Read existing tests as context only; deliver findings and written remediation recommendations.
+
 ## Ordered Audit Phases
 
 Use this order so implementation-level patterns do not distract from protocol-level failures:
@@ -25,10 +27,8 @@ Use this order so implementation-level patterns do not distract from protocol-le
 17. Token compatibility
 18. Low-level EVM and assembly
 19. Denial of service and griefing
-20. Fuzz testing
-21. Stateful invariant testing
-22. Operational and administrative security
-23. Candidate validation and findings
+20. Operational and administrative security
+21. Candidate validation and findings
 
 Do not stop after finding a severe issue. Complete every applicable phase, or mark it blocked/non-applicable with a concrete reason.
 
@@ -39,7 +39,7 @@ Use these artifacts as lightweight audit notes when the protocol is non-trivial.
 - **Entrypoint inventory:** externally reachable function, caller assumptions, lifecycle step, value moved, critical state changed, external calls, and reachable privileged paths.
 - **Asset-flow table:** asset, source, custodian, accounting source of truth, conversion formula/unit, normal destination, emergency/privileged destination, and direct-transfer/donation behavior.
 - **Role matrix:** role, direct capability, indirect capability through shared helpers or role-admin powers, maximum impact, and intended trust assumption.
-- **Invariant map:** invariant, operations that can affect it, attacker-controlled variables, external dependencies, boundary values, and the test or reasoning that checks it.
+- **Invariant map:** invariant, operations that can affect it, attacker-controlled variables, external dependencies, boundary values, and the source evidence and reasoning supporting it.
 - **External dependency map:** dependency, service/value relied on, who can influence outputs, revert/pause/upgrade/staleness behavior, callback surface, and user-exit behavior during failure.
 - **Candidate ledger:** suspected issue, broken rule, actor, prerequisites, path, impact, existing guards, evidence status, and final disposition as finding, unresolved risk, or rejected.
 
@@ -93,7 +93,7 @@ Distinguish an explicitly trusted role's documented power from a vulnerability. 
 
 ## 4. Business Logic and State Machines
 
-Model full lifecycles rather than isolated functions. Test normal, reordered, repeated, skipped, interrupted, and cross-user sequences. Examples include:
+Model full lifecycles rather than isolated functions. Analyze normal, reordered, repeated, skipped, interrupted, and cross-user sequences. Examples include:
 
 - deposit → mint → transfer share → redeem;
 - deposit → borrow → price change → liquidate;
@@ -123,7 +123,7 @@ For each invariant, enumerate functions, callbacks, direct transfers, privileged
 
 Identify the authoritative variables for assets, shares, supply, principal, debt, borrow, interest, rewards, fees, and reserves. Trace every increment, decrement, reset, realization, and transfer.
 
-Compare actual balances with internal accounting only after determining which one is intended as the source of truth. Specifically test:
+Compare actual balances with internal accounting only after determining which one is intended as the source of truth. Specifically inspect:
 
 - duplicate, missing, or incorrectly cleared entries;
 - state updates before/after external calls and failures;
@@ -149,7 +149,7 @@ Determine:
 - whether dust can become trapped, stolen, or weaponized;
 - behavior at zero, one wei, minimum valid input, boundary ±1, large values, and maximum supported values.
 
-Use concrete dimensional analysis for mixed decimals such as 6-decimal tokens, 8-decimal feeds, and 18-decimal internal precision. Test both individual conversions and round trips.
+Use concrete dimensional analysis for mixed decimals such as 6-decimal tokens, 8-decimal feeds, and 18-decimal internal precision. Analyze both individual conversions and round trips.
 
 ## 8. Economic Model
 
@@ -165,7 +165,7 @@ Map every Chainlink feed, TWAP, DEX spot price, custom/signed/off-chain oracle, 
 
 Check freshness, heartbeat, round completeness, sign/zero handling, decimals, sequencer downtime, deviation bounds, update delay, pause/fallback behavior, permissions, source switching, circular dependencies, and unit consistency.
 
-Treat a DEX spot price as manipulable unless the protocol proves otherwise. Test flash swaps, large trades, low liquidity, donation, LP manipulation, and same-transaction read/write effects. Trace impact into collateral, borrow limits, liquidation, mint/redeem amounts, shares, and rewards.
+Treat a DEX spot price as manipulable unless the protocol proves otherwise. Analyze flash swaps, large trades, low liquidity, donation, LP manipulation, and same-transaction read/write effects. Trace impact into collateral, borrow limits, liquidation, mint/redeem amounts, shares, and rewards.
 
 ## 10. External Protocol Integrations
 
@@ -220,7 +220,7 @@ Analyze single-function, cross-function, cross-contract, and read-only reentranc
 
 Treat flash liquidity as the ability to use very large capital atomically, not as a vulnerability by itself. Re-evaluate oracle inputs, voting, rewards, share prices, liquidity, collateral, liquidation, accounting, and token price under a large temporary balance.
 
-Test sequences of borrow → manipulate → trigger protocol action → unwind → repay. A realistic same-transaction exploit should not be dismissed or downgraded merely because flash liquidity is used.
+Analyze sequences of borrow → manipulate → trigger protocol action → unwind → repay. A realistic same-transaction exploit should not be dismissed or downgraded merely because flash liquidity is used.
 
 ## 16. MEV and Transaction Ordering
 
@@ -246,29 +246,17 @@ For delegatecall, identify whose code executes, whose storage is used, the effec
 
 Inspect unbounded loops, attacker-controlled arrays/storage growth, malicious reverts, gas exhaustion, dust positions, forced value, blocked recipients, callbacks, global locks, and external dependency failure.
 
-Measure attack cost, repeatability, affected scope, duration, and recovery path. A low-cost attack that blocks the whole protocol may be material even without attacker profit. Distinguish single-user self-DoS from protocol-wide liveness loss.
+Assess attack cost from available code and evidence, repeatability, affected scope, duration, and recovery path. A low-cost attack that blocks the whole protocol may be material even without attacker profit. Distinguish single-user self-DoS from protocol-wide liveness loss.
 
-## 20. Fuzz Testing
-
-Use Foundry fuzz tests for critical math and state transitions such as deposit/withdraw, mint/redeem, borrow/repay/liquidate, swap, claim, stake, and unstake.
-
-Design assertions around security properties, not random input volume. Include zero, one, minimum valid, boundary ±1, large values, maxima, decimal combinations, and meaningful relational inputs. When fuzzing finds a failure, minimize it into a deterministic regression case and analyze root cause and impact before calling it a vulnerability.
-
-## 21. Stateful Invariant Testing
-
-Use handlers to model realistic multi-user, multi-function, long-sequence behavior. Include actions that affect ownership and accounting: deposit, withdraw, mint, redeem, borrow, repay, transfer, claim, stake, unstake, liquidation, time movement, price changes, and privileged operations as appropriate.
-
-Prioritize invariants for asset conservation, user entitlement, share/debt/reward/fee accounting, solvency, protocol balances, and recoverability. Track ghost variables when necessary to express expected net flows. Bound inputs without excluding the boundary conditions under review.
-
-## 22. Operational and Administrative Security
+## 20. Operational and Administrative Security
 
 Evaluate pause, emergency withdrawal, oracle fallback, rate/withdraw limits, multisig, timelock, monitoring assumptions, upgrade delay, and recovery.
 
 Model compromised admin keys, stale oracles, paused/upgraded external protocols, missing DEX liquidity, token blacklist/pause, and multisig compromise. Verify which actions remain available while paused, whether users can exit, whether emergency paths preserve accounting, whether timelocks can be bypassed, and whether guardians/rate limits materially constrain loss.
 
-## 23. Candidate Validation and Findings
+## 21. Candidate Validation and Findings
 
-Do not formalize a candidate without root cause, reachable attack or failure path, and impact. Validate exact dependency behavior and all existing guards. For material issues, prefer a minimal Foundry PoC, concrete state trace, numerical example, or mathematical proof.
+Do not formalize a candidate without root cause, reachable attack or failure path, and impact. Validate exact dependency behavior and all existing guards. For material issues, cite the source locations and explain why the path is reachable and the impact follows. State evidence gaps without attempting local reproduction.
 
 Severity depends on impact and likelihood, informed by attack cost, privilege, capital, affected assets/users, exploit complexity, and recoverability. Do not report code style as a security issue, equate a failing test with a vulnerability, or assign High/Critical to an unproven theory.
 
@@ -292,15 +280,13 @@ A full protocol audit is complete only when each item is completed or explicitly
 - [ ] Signature binding, nonce/deadline/domain, and replay protections are reviewed where applicable.
 - [ ] Single-, cross-function, cross-contract, and read-only reentrancy are considered.
 - [ ] Flash liquidity and transaction-ordering/MEV effects are considered.
-- [ ] Supported token behaviors and compatibility assumptions are tested.
+- [ ] Supported token behaviors and compatibility assumptions are reviewed from source.
 - [ ] Low-level calls, assembly, delegatecall, storage, memory, and returndata handling are reviewed where present.
 - [ ] DoS/griefing cost, scope, duration, and recovery are analyzed.
-- [ ] Fuzz tests are executed or concretely designed for critical math and boundaries.
-- [ ] Stateful invariants are executed or concretely designed for complex protocols.
 - [ ] Pause, emergency, timelock, multisig, monitoring, and recovery assumptions are reviewed.
-- [ ] Every formal finding has affected code, root cause, path, impact, remediation, and a regression test.
-- [ ] Every High/Critical finding has a verifiable path or PoC.
-- [ ] Executed tests and their actual results are recorded without overclaiming.
+- [ ] Every formal finding has affected code, root cause, path, impact, and remediation recommendations.
+- [ ] Every High/Critical finding has a code-grounded reachable path and concrete impact.
+- [ ] Conclusions are identified as static analysis and do not imply local validation.
 - [ ] Exclusions, unavailable evidence, unresolved economic risks, and unverified trust/design assumptions are recorded.
 
 ## Prohibited Shortcuts
@@ -314,5 +300,5 @@ Do not:
 - assume an administrator is honest unless that is an explicit trust assumption;
 - report an unproven concern as a vulnerability or inflate severity without path and impact;
 - lower severity solely because flash liquidity or a complex transaction sequence is required;
-- change intended protocol behavior simply to satisfy a test;
+- modify project files, write PoCs, or run local validation;
 - claim coverage or execution that did not occur.

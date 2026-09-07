@@ -9,7 +9,7 @@ foundry-test -> foundry-post-dev-optimization -> solidity-foundry-security-revie
 - `doc-natspec`：用于在 Solidity / Foundry 开发完成后补齐和修复 NatSpec 注释，并用 `forge doc` 做最终验证
 - `foundry-test`：用于在 Foundry 项目开发完成后补齐和强化测试，优先补高价值单元测试，并在必要时增加集成、fuzz 与 invariant 测试
 - `foundry-post-dev-optimization`：用于在 Foundry 项目开发完成后做 gas、语义 no-op 裁剪、代码结构和可维护性优化，低风险项直接修，风险较高的项保留为建议
-- `solidity-foundry-security-review`：用于在 Foundry 项目中进行面向代码上下文的安全审查，强调先读项目、再做结论
+- `solidity-foundry-security-review`：用于在 Foundry 项目中进行只读静态安全审查，输出发现和修复建议，不修改代码、不进行本地验证或编写 PoC
 
 ## 当前内容
 
@@ -56,17 +56,17 @@ skills/
 `solidity-foundry-security-review` 适用于以下场景：
 
 - 对 Foundry Solidity 项目做安全检查
-- 在功能开发后做合约 hardening
+- 在功能开发后提出合约加固建议
 - 在合并前进行代码审查
 - 分析 vault、token 集成、升级代理、oracle 依赖和低级调用等风险面
-- 区分定向安全审查与完整协议审计，并在完整审计中覆盖资产流、会计、经济模型、攻击路径、Fuzz 和 Invariant 等协议级方法
+- 区分定向安全审查与完整协议审计，并在完整静态审计中覆盖资产流、会计、经济模型、攻击路径和 Invariant 等协议级分析
 
 ## 设计原则
 
 - 先读项目：优先阅读 `README.md`、`foundry.toml`、目标合约和相关测试
 - 基于代码：所有结论都应落到具体文件和实现
 - 面向利用路径：关注攻击路径、失败路径与资金影响
-- 可验证：修复建议应尽量附带 Forge 测试方向
+- 可验证：安全审查结论应附带代码位置、可达条件和影响依据
 
 ## 使用方式
 
