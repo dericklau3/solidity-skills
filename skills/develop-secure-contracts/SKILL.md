@@ -1,6 +1,6 @@
 ---
 name: develop-secure-contracts
-description: "Develop secure smart contracts using OpenZeppelin Contracts libraries. Use when users need to integrate OpenZeppelin library components — including token standards (ERC20, ERC721, ERC1155), access control (Ownable, AccessControl, AccessManager), security primitives (Pausable, ReentrancyGuard), governance (Governor, timelocks), or accounts (multisig, account abstraction) — into existing or new contracts. Covers pattern discovery from library source, CLI contract generators, and library-first integration. Supports Solidity, Cairo, Stylus, Stellar, and Sui Move."
+description: "Develop secure smart contracts using OpenZeppelin Contracts libraries. Use when users need to integrate OpenZeppelin library components — including token standards (ERC20, ERC721, ERC1155), access control (Ownable, AccessControl, AccessManager), security primitives (Pausable, ReentrancyGuard), governance (Governor, timelocks), or accounts (multisig, account abstraction) — into existing or new Solidity contracts. Covers pattern discovery from library source, CLI contract generators, and library-first integration. Supports Solidity."
 license: AGPL-3.0-only
 metadata:
   author: OpenZeppelin
@@ -18,7 +18,7 @@ For conceptual questions ("How does Ownable work?"), explain without generating 
 
 Before generating code or suggesting changes:
 
-1. **Search the user's project** for existing contracts (`Glob` for `**/*.sol`, `**/*.cairo`, `**/*.rs`, `**/*.move`, etc.)
+1. **Search the user's project** for existing Solidity contracts (`Glob` for `**/*.sol`)
 2. **Read the relevant contract files** to understand what already exists
 3. **Default to integration, not replacement** — when users say "add pausability" or "make it upgradeable", they mean modify their existing code, not generate something new. Only replace if explicitly requested ("start fresh", "replace this").
 
@@ -28,14 +28,48 @@ If a file cannot be read, surface the failure explicitly — report the path att
 
 Before writing ANY logic, search the OpenZeppelin library for an existing component:
 
-1. **Exact match exists?** Import and use it directly — inherit, implement its trait, compose with it. Done.
+1. **Exact match exists?** Import and use it directly — inherit or compose with it. Done.
 2. **Close match exists?** Import and extend it — override only functions the library marks as overridable (virtual, hooks, configurable parameters).
 3. **No match exists?** Only then write custom logic. Confirm by browsing the library's directory structure first.
 
 **NEVER copy or embed library source code into the user's contract.** Always import from the dependency so the project receives security updates. Never hand-write what the library already provides:
+
 - Never write a custom `paused` modifier when `Pausable` or `ERC20Pausable` exists
 - Never write `require(msg.sender == owner)` when `Ownable` exists
 - Never implement ERC165 logic when the library's base contracts already handle it
+
+
+### CRITICAL: Validation Style — Prefer `require` with Custom Errors
+
+For ordinary precondition checks, validation, access/state guards, and invariant-style input checks, **prefer `require(condition, Errors.Xxx(...))`** over `if (!condition) revert Errors.Xxx(...);`.
+
+Use a centralized `Errors` namespace/library when the project already has one. For new project-specific errors, prefer defining or reusing them in a shared `Errors.sol` rather than scattering error declarations across contracts, unless the existing project has a different explicit convention.
+
+**Preferred:**
+
+```solidity
+require(account != address(0), Errors.ZeroAddress());
+require(amount > 0, Errors.InvalidAmount());
+require(balance >= amount, Errors.InsufficientBalance(balance, amount));
+```
+
+**Avoid for simple validation:**
+
+```solidity
+if (account == address(0)) revert Errors.ZeroAddress();
+if (amount == 0) revert Errors.InvalidAmount();
+if (balance < amount) revert Errors.InsufficientBalance(balance, amount);
+```
+
+Rules:
+
+1. Write the condition in the **success form**: `require(validCondition, Errors.Xxx())`.
+2. Reuse the project's existing `Errors.Xxx(...)` custom errors before creating new ones.
+3. Do not replace custom errors with revert strings such as `require(x, "INVALID")` unless the user explicitly requests revert strings.
+4. Do not use `if (...) revert ...` merely as a stylistic alternative to a simple `require` guard.
+5. `if (...) revert ...` is acceptable only when the revert belongs to genuinely branch-dependent control flow that cannot be expressed cleanly as a simple precondition, or when the user explicitly requests the `if/revert` form.
+6. Remember that `require` arguments are evaluated unconditionally. Do not put calls with side effects or unnecessarily expensive computations inside `Errors.Xxx(...)` arguments.
+7. When editing an existing function, convert newly touched simple `if (!condition) revert Errors.Xxx();` guards to the preferred `require(condition, Errors.Xxx());` form, while keeping the change focused on the requested area.
 
 ### Methodology
 
@@ -60,49 +94,40 @@ If no CLI command exists for what's needed, use the generic pattern discovery me
 ## Pattern Discovery and Integration
 
 Procedural guide for discovering and applying OpenZeppelin contract integration patterns
-by reading dependency source code. Works for any ecosystem and any library version.
+by reading dependency source code for Solidity projects.
 
 **Prerequisite:** Always follow the library-first decision tree above
 (prefer library components over custom code, never copy/embed source).
 
 ### Step 1: Identify Dependencies and Search the Library
 
-1. Search the project for contract files: `Glob` for `**/*.sol`, `**/*.cairo`, `**/*.rs`,
-   `**/*.move`, or the relevant extension from the lookup table below.
-2. Read import/use statements in existing contracts to identify which OpenZeppelin components
+1. Search the project for Solidity contract files: `Glob` for `**/*.sol`.
+2. Read import statements in existing contracts to identify which OpenZeppelin components
    are already in use.
 3. Locate the installed dependency in the project's dependency tree:
-   - Solidity: `node_modules/@openzeppelin/contracts/` (Hardhat/npm) or
-     `lib/openzeppelin-contracts/` (Foundry/forge)
-   - Cairo: resolve from `Scarb.toml` dependencies — source cached by Scarb
-   - Stylus: resolve from `Cargo.toml` — source in `target/` or the cargo registry cache
-     (`~/.cargo/registry/src/`)
-   - Stellar: resolve from `Cargo.toml` — same cargo cache locations as Stylus
-   - Sui Move: resolve from `Move.toml` — after a build, the MVR source is cached under `~/.move/`
-     and mirrored per-dependency in `build/<project_package>/sources/dependencies/<move_package_name>/`
+   - Hardhat/npm: `node_modules/@openzeppelin/contracts/`
+   - Foundry/forge: `lib/openzeppelin-contracts/`
 4. Browse the dependency's directory listing to discover available components. Use `Glob`
    patterns against the installed source (e.g., `node_modules/@openzeppelin/contracts/**/*.sol`).
    Do not assume knowledge of the library's contents — always verify by listing directories.
-5. If the dependency is not installed locally, clone or browse the canonical repository
-   (see lookup table below).
+5. If the dependency is not installed locally, clone or browse the canonical OpenZeppelin Contracts repository.
 
 ### Step 2: Read the Dependency Source and Documentation
 
 1. Read the source file of the component relevant to the user's request.
-2. Look for documentation within the source: NatSpec comments (`///`, `/** */`) in Solidity,
-   doc comments (`///`) in Rust and Cairo, and README files in the component's directory.
+2. Look for documentation within the source: Solidity NatSpec comments (`///`, `/** */`) and README files in the component's directory.
 3. Determine the integration strategy using the decision tree from the Critical Principle:
    - If the component satisfies the need directly → import and use as-is.
    - If customization is needed → identify extension points the library provides (virtual
      functions, hook functions, configurable constructor parameters). Import and extend.
    - Only if no component covers the need → write custom logic.
-4. Identify the **public API**: functions/methods exposed, events emitted, errors defined.
+4. Identify the **public API**: functions exposed, events emitted, errors defined.
 5. Identify **integration requirements** — this is the critical step:
-   - Functions the integrator MUST implement (abstract functions, trait methods, hooks)
-   - Modifiers, decorators, or guards that must be applied to the integrator's functions
+   - Functions the integrator MUST implement (abstract functions, overrides, hooks)
+   - Modifiers or guards that must be applied to the integrator's functions
    - Constructor or initializer parameters that must be passed
    - Storage variables or state that must be declared
-   - Inheritance or trait implementations required (always via import, never via copy)
+   - Inheritance required (always via import, never via copy)
 6. Search for example contracts or tests in the same repository that demonstrate correct
    usage. Look in `test/`, `tests/`, `examples/`, or `mocks/` directories.
 
@@ -110,8 +135,8 @@ by reading dependency source code. Works for any ecosystem and any library versi
 
 From Step 2, construct the minimal set of changes needed:
 
-- **Imports / use statements** to add
-- **Inheritance / trait implementations** to add (always via import from the dependency)
+- **Imports** to add
+- **Inheritance** to add (always via import from the dependency)
 - **Storage** to declare
 - **Constructor / initializer** changes (new parameters, initialization calls)
 - **New functions** to add (required overrides, hooks, public API)
@@ -129,34 +154,30 @@ between "contract without the feature" and "contract with the feature."
    integrate into existing code.
 3. Check for conflicts: duplicate access control systems, conflicting function overrides,
    incompatible inheritance. Resolve before finishing.
-4. Do not ask the user to make changes themselves — apply directly.
+4. Enforce the validation style above in touched code: prefer `require(validCondition, Errors.Xxx(...))`
+   for simple guards.
+5. Do not ask the user to make changes themselves — apply directly.
 
-### Repository and Documentation Lookup Table
+### Repository and Documentation Lookup
 
-| Ecosystem | Repository | Documentation | File Extension | Dependency Location |
-|-----------|-----------|---------------|----------------|-------------------|
-| Solidity | [openzeppelin-contracts](https://github.com/OpenZeppelin/openzeppelin-contracts) | [docs.openzeppelin.com/contracts](https://docs.openzeppelin.com/contracts) | `.sol` | `node_modules/@openzeppelin/contracts/` or `lib/openzeppelin-contracts/` |
-| Cairo | [cairo-contracts](https://github.com/OpenZeppelin/cairo-contracts) | [docs.openzeppelin.com/contracts-cairo](https://docs.openzeppelin.com/contracts-cairo) | `.cairo` | Scarb cache (resolve from `Scarb.toml`) |
-| Stylus | [rust-contracts-stylus](https://github.com/OpenZeppelin/rust-contracts-stylus) | [docs.openzeppelin.com/contracts-stylus](https://docs.openzeppelin.com/contracts-stylus) | `.rs` | Cargo cache (`~/.cargo/registry/src/`) |
-| Stellar | [stellar-contracts](https://github.com/OpenZeppelin/stellar-contracts) ([Architecture](https://github.com/OpenZeppelin/stellar-contracts/blob/main/Architecture.md)) | [docs.openzeppelin.com/stellar-contracts](https://docs.openzeppelin.com/stellar-contracts) | `.rs` | Cargo cache (`~/.cargo/registry/src/`) |
-| Sui Move | [contracts-sui](https://github.com/OpenZeppelin/contracts-sui) ([llms.txt](https://raw.githubusercontent.com/OpenZeppelin/contracts-sui/main/llms.txt) · [ARCHITECTURE](https://raw.githubusercontent.com/OpenZeppelin/contracts-sui/main/ARCHITECTURE.md)) | [docs.openzeppelin.com/contracts-sui](https://docs.openzeppelin.com/contracts-sui) | `.move` | Move Registry cache (`~/.move/`, resolve from `Move.toml`) |
+| Ecosystem | Repository                                                   | Documentation                                                | File Extension | Dependency Location                                          |
+| --------- | ------------------------------------------------------------ | ------------------------------------------------------------ | -------------- | ------------------------------------------------------------ |
+| Solidity  | [openzeppelin-contracts](https://github.com/OpenZeppelin/openzeppelin-contracts) | [docs.openzeppelin.com/contracts](https://docs.openzeppelin.com/contracts) | `.sol`         | `node_modules/@openzeppelin/contracts/` or `lib/openzeppelin-contracts/` |
 
 ### Directory Structure Conventions
 
-Where to find components within each repository:
+Where to find components within the OpenZeppelin Contracts repository:
 
-| Category | Solidity | Cairo | Stylus | Stellar |
-|----------|---------|-------|--------|---------|
-| Tokens | `contracts/token/{ERC20,ERC721,ERC1155}/` | `packages/token/` | `contracts/src/token/` | `packages/tokens/` |
-| Access control | `contracts/access/` | `packages/access/` | `contracts/src/access/` | `packages/access/` |
-| Governance | `contracts/governance/` | `packages/governance/` | — | `packages/governance/` |
-| Proxies / Upgrades | `contracts/proxy/` | `packages/upgrades/` | `contracts/src/proxy/` | `packages/contract-utils/` |
-| Utilities / Security | `contracts/utils/` | `packages/utils/`, `packages/security/` | `contracts/src/utils/` | `packages/contract-utils/` |
-| Accounts | `contracts/account/` | `packages/account/` | — | `packages/accounts/` |
+| Category             | Solidity                                  |
+| -------------------- | ----------------------------------------- |
+| Tokens               | `contracts/token/{ERC20,ERC721,ERC1155}/` |
+| Access control       | `contracts/access/`                       |
+| Governance           | `contracts/governance/`                   |
+| Proxies / Upgrades   | `contracts/proxy/`                        |
+| Utilities / Security | `contracts/utils/`                        |
+| Accounts             | `contracts/account/`                      |
 
 Browse these paths first when searching for a component.
-
-**Sui Move** isn't in this fixed grid and has no `@openzeppelin/contracts-cli` generator, so always use the pattern-discovery methodology above — adapt a package's `examples/` as the canonical integration recipe and import via MVR rather than copying source. Discover everything else (the package set, composition and style conventions, exact APIs, and the toolchain) from the library's own metadata, starting at [`llms.txt`](https://raw.githubusercontent.com/OpenZeppelin/contracts-sui/main/llms.txt); the `setup-sui-contracts` skill covers the full setup, dependency, `--build-env` build, and quality-gate flow.
 
 ### Known Version-Specific Considerations
 
@@ -166,28 +187,34 @@ A known example: the Solidity ERC-20 transfer hook changed between v4 and v5. Re
 
 ## CLI Generators
 
-The `@openzeppelin/contracts-cli` package generates reference OpenZeppelin contract implementations from the command line. Use it as the reference source in the generate-compare-apply workflow whenever a command exists for the contract type.
+The `@openzeppelin/contracts-cli` package generates reference OpenZeppelin contract implementations from the command line. Use it as the reference source in the generate-compare-apply workflow whenever a command exists for the Solidity contract type.
 
 ### Discovering Commands and Options
 
-Run `npx @openzeppelin/contracts-cli --help` to list available commands. Each command corresponds to a contract type (e.g., `solidity-erc20`, `cairo-erc721`, `stellar-fungible`). Run `npx @openzeppelin/contracts-cli <command> --help` to see the available options. Do not rely on prior knowledge of what options exist; check `--help` at the start of a conversation since the CLI may have been updated.
+Run `npx @openzeppelin/contracts-cli --help` to list available commands. For a Solidity contract command (e.g., `solidity-erc20`), run `npx @openzeppelin/contracts-cli <command> --help` to see the available options. Do not rely on prior knowledge of what options exist; check `--help` at the start of a conversation since the CLI may have been updated.
 
 ### Generate-Compare-Apply Shortcut
 
 When a CLI command exists for the contract type, pipe generated output to temporary files and diff them to keep generated contract code out of the conversation context:
 
 1. **Generate baseline** — run with only required options, all features disabled, pipe to a file:
+
    ```bash
    npx @openzeppelin/contracts-cli solidity-erc20 --name MyToken --symbol MTK > /tmp/oz-baseline.sol
    ```
+
 2. **Generate with feature** — run again with the feature enabled, pipe to a second file:
+
    ```bash
    npx @openzeppelin/contracts-cli solidity-erc20 --name MyToken --symbol MTK --pausable > /tmp/oz-variant.sol
    ```
+
 3. **Compare** — diff the two files to identify exactly what changed (imports, inheritance, state, constructor, functions, modifiers):
+
    ```bash
    diff /tmp/oz-baseline.sol /tmp/oz-variant.sol
    ```
+
 4. **Apply** — edit the user's existing contract to add the discovered changes
 
 For interacting features (e.g., access control + upgradeability), generate a combined variant as well.
