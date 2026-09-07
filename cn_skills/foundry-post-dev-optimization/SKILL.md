@@ -1,281 +1,74 @@
 ---
 name: foundry-post-dev-optimization
-description: "当 Solidity 或 Foundry 合约开发已经完成，并且需要进行开发后的优化检查时使用。优化范围包括 Gas、语义 no-op 裁剪、代码结构和可维护性，但不要把它扩展成安全审计或完整重构。"
+description: "用于 Solidity / Foundry 开发后的 Gas 优化与有证据的语义 no-op 裁剪，按部署状态处理错误类型和存储优化。"
 license: AGPL-3.0-only
 metadata:
   author: derick
 ---
 
-# Solidity 合约开发后的优化
+# 优化开发完成的 Solidity 合约
 
-## 核心工作流
+## 遵守本技能
 
-### 编辑前先理解请求
+执行时遵守本技能适用的范围、执行规则、验证要求和输出约定。不静默跳过必需步骤，不用建议代替已授权的实现。用户明确指令及更高优先级指令优先。必需步骤无法完成时，说明具体限制、继续独立工作，不宣称该步骤已经完成。
 
-当 Solidity / Foundry 开发已经完成，并且用户希望对现有合约进行一次聚焦的优化检查时，使用这个 skill。
+## 范围与执行
 
-这个 skill 同时覆盖开发后的 Gas 优化和保持行为不变的语义级裁剪。冗余变量、死分支、薄 wrapper 和重复计算，如果删除后能改善 Gas、代码结构或可维护性，都属于优化工作的一部分。
+对用户指定合约优化 Gas、删除已证明的语义 no-op；未指定时使用项目配置的源码目录。用户要求优化时，直接实现明确且有证据的改进；明确要求只评审时保持只读。本技能不授权新功能、安全审计或大规模重构。
 
-这个 skill 不适用于初始功能实现、风格清理、宽泛重构、代码压缩、安全审计或推测性的架构清理。
+阅读编译器/optimizer 配置、目标合约、受影响 caller、测试、脚本和实际安装的依赖。在选择修改前追踪 override、数据/控制流、外部调用和可观察输出，检查现有 Gas 测量流程。保留无关改动，不编辑依赖源码、生成文件或无关格式。需要判断兼容性时读取接口和部署资料。
 
-### 先阅读项目
+## 确定部署状态
 
-在进行优化或裁剪编辑之前：
+以用户明确说明、受影响合约及支持链的部署记录为依据。当前 checkout 没有部署文件或地址，不足以证明从未部署。状态仍未知时，继续不依赖部署状态的优化；仅在某项依赖部署状态的修改已具备其他执行条件时询问。
 
-1. 如果存在 `foundry.toml`，阅读它。
-2. 搜索 `src/` 目录下范围内的 Solidity 合约。
-3. 默认排除 interfaces，除非用户明确要求包含它们。
-4. 在需要理解预期行为时，阅读相邻的测试、mock、fixture、script 和辅助合约。
-5. 当 import、继承或库版本会影响优化时，阅读 `remappings.txt`、`lib/`、`node_modules/` 和包配置。
-6. 搜索所有可能观察到被修改或裁剪代码的 caller、override、implementation、test、fixture、script、生成客户端和公开 export。
-7. 追踪相关数据流：赋值到观察点之间是否经过 return、持久化状态、event / log、外部调用、script 输出、ABI encoding 或测试断言。
-8. 追踪相关控制流：guard、modifier、更早的校验、revert 路径、状态机转换、hook、callback 和外部调用。
-9. 检查公开契约是否依赖当前形态：ABI 签名、event 字段、custom error selector、revert 行为、storage layout、script 参数、生成产物或部署假设。
-10. 检查仓库是否已经存在 benchmark、snapshot、gas-report 或其他优化验证流程。
+| 状态 | 错误与存储规则 |
+| --- | --- |
+| 确认尚未部署上链，且不用于升级已有链上状态 | 优先节省 Gas：有依据时直接将 revert string 替换为合适的 custom error，进行 storage packing/变量重排。这些属于优化请求范围，无需另行确认兼容性变更。 |
+| 已部署，包括为已有代理准备的新实现 | 保持错误 selector/revert 契约及存储兼容性。新实现尚未广播，只要需读取已有代理状态，就不属于未部署系统。 |
+| 未知 | 在状态明确前保持错误和存储契约，完成其他已证明的优化。 |
 
-如果无法检查必要的 caller、合约、依赖、生成产物、storage-layout 参考或验证路径，需要明确说明，不要把优化视为已经完全证明。
+部署前许可覆盖错误表示和存储排列，不包含任意业务、权限、资产流、函数签名或 event 变更。保持输入范围和失败条件。缩窄变量类型必须证明所有支持值均可容纳，包括中间计算和未来配置；不得引入截断或新的 overflow 行为。
 
-### 默认范围
+部署前修改要同步受影响的错误断言、caller、接口、部署/初始化脚本和文档，通过项目正常流程重新生成受影响的 ABI/layout 产物。检查继承、namespaced storage、assembly slot 引用及依赖布局的工具。将这类改动说明为有意的部署前 Gas 优化，不宣称其属于语义 no-op 删除。
 
-默认检查：
+## 选择并证明改动
 
-- `src/` 目录下的 Solidity 合约
+### 局部、保持行为的改动
 
-默认排除：
+当 caller、数据/控制流及副作用证据完整时实现：
 
-- interfaces
-- vendored dependencies
-- 生成代码
-- migration 和部署 metadata
-- lockfile、snapshot 和纯格式化 churn
+- 安全的 `memory` 改 `calldata`、冗余转换/计算、重复 storage read/length 缓存。缓存值在状态修改、hook、callback 和外部调用之后仍须有效。
+- 死赋值、被忽略的 private 返回值、不可达 private 分支，以及所有可达路径均满足前置条件的重复 guard。
+- 仅在不提供业务含义、授权、不变量、副作用、诊断或 Gas 收益时，删除透传临时变量或 wrapper。
+- helper 已接收规范 mapping key 时，删除冗余 storage-reference 参数。证明每个 caller 都传入同一 key 的 `mapping[key]`，保持 aliasing、delete/reload 和 reassignment 行为。caller 需要预先获取的 slot 或其他 mapping 项时保留显式引用。
+- 读取实际安装库源码并证明行为等价后，复用库组件。通过 import 使用，不粘贴库源码。
 
-如果用户指定了特定合约或文件，则缩小到对应范围。
+仅测试通过不能证明冗余；每个非平凡删除都要有代码不变量支撑。
 
-### 优化类别
+### 需要更强证据的改动
 
-检查以下方面的优化机会：
+- Custom error 和 storage packing/变量重排按上方部署状态表执行。
+- 只有证明所有可达算术范围后才能使用 `unchecked`。
+- 优化 loop、合并分支或修改依赖 hook 前，保持求值顺序、支持输入、外部调用顺序、副作用以及相关继承/initializer 要求。
+- 若替代方案需要手动截断 memory array length，保留两轮 count-and-fill 模式。不把这种截断作为默认优化；assembly 技巧归入下一节。
 
-- Gas 效率
-- 语义 no-op 裁剪
-- 代码结构
-- 可维护性
+### 单独授权前仅作为建议
 
-不要机械式优化。只有当改动对每个受支持 caller 和输入都保持预期行为不变，并且收益真实到值得编辑时，才可以修改。
+Assembly、函数/event ABI 重设计、已部署系统的兼容性变更及大规模多合约重写，需要用户明确扩大请求范围且证据充分。删除不可信输入校验、授权、资金转移检查、oracle 假设、callback/reentrancy 防护或支持版本保护前，必须证明所有可达路径仍执行同等保证。
 
-### 语义裁剪类别
-
-主动寻找保持行为不变的删除和简化机会：
-
-- 死赋值和被读取前覆盖的值
-- 未使用返回值和未使用输出
-- 重复 guard 或已经被强制检查过的条件
-- 没有可读性或调试价值的透传临时变量
-- private 或 internal helper 参数只是在透传 storage reference，或透传可以从 canonical key 参数重新取得的值
-- 在已证明前置条件或状态转换下不可达的分支
-- 没有增加边界、不变量、重试、日志、授权、归一化、领域词汇或 Gas 收益的薄 wrapper
-- 冗余转换、重复计算或 no-op normalization
-- AI 生成代码引入的、没有可达目的的过度防御分支
-
-不要因为代码“看起来没用”就裁剪。只有 caller、数据流、控制流、类型、状态不变量、接口契约和副作用证据证明它不可能影响可观察行为时，才删除。
-
-### 库和版本规则
-
-在替换、简化或微优化与 OpenZeppelin、Solady、Token 标准、代理工具或其他依赖重叠的逻辑前：
-
-- 定位并阅读项目安装的依赖源码。不要凭记忆假设 API、hook 或 storage pattern。
-- 相比维护自定义重复逻辑，优先 import、配置或扩展成熟组件。
-- 不要把依赖源码粘贴进用户合约作为优化。
-- 把继承 hook、必需 override、initializer 顺序、namespaced storage、storage gap 和 state variable 顺序视为优化边界。
-- 如果建议的优化可能影响 storage layout、ABI、event 语义、访问控制或外部集成假设，除非用户明确批准更大范围改动，否则保留为建议。
-
-## 优化等级
-
-### 1. 安全的直接编辑
-
-当语义清晰且证明局部完整时，可以直接 patch 低风险优化。
-
-常见示例：
-
-- 在安全的情况下，将 `memory` 改为 `calldata`
-- 缓存重复读取的 storage 值或长度
-- 删除在任何读取前都会被覆盖的赋值
-- 内联只赋值一次、读取一次，且名称不承载领域含义的变量
-- 当所有到达 caller 都已经强制相同前置条件时，删除不可达 private 分支
-- 当所有 caller 都忽略返回值，且没有 interface 要求时，删除 private 返回值
-- 删除冗余计算、变量或分支
-- 当 helper 已经接收 canonical mapping key，且每个 caller 都传入同一个 key 的 `mapping[key]` 时，删除 private helper 的 storage-reference 参数
-- 删除只调用一个 private helper，且不增加不变量、副作用或有效词汇的 wrapper
-- 当行为完全一致时，用已安装且边界清晰的库组件替换本地重复 utility 逻辑
-
-只有在没有公开契约、副作用、诊断行为、storage 预期或框架约定依赖当前代码时，才直接 patch。
-
-### 2. 有条件的编辑
-
-只有在行为清晰且验证强度足够时才 patch。
-
-常见示例：
-
-- 用 custom error 替换 revert string
-- `unchecked`
-- storage packing
-- loop 优化
-- state variable 重新排序
-- 减少状态转换和外部调用周围的重复读取
-- 合并副作用和错误行为等价的重复分支
-- 在所有 mutation 路径都已证明后，删除围绕内部状态的防御性检查
-- 简化重复 parsing、serialization 或 normalization 逻辑
-- 删除面向已文档化不支持版本或模式的兼容分支
-- 修改 inheritance、modifier 或 hook 以使用依赖提供的 extension
-
-只有在满足以下条件时才 patch：
-
-- 可以从代码和上下文清楚理解语义
-- 不变量来自代码证明，而不是命名推断或当前测试覆盖
-- 可观察的 error type、message、log、event、metrics、求值顺序和 revert 行为保持等价
-- 不会违反 storage layout 或 upgradeability 假设
-- 不会破坏外部集成预期
-- 现有验证足够强，可以支撑这个改动
-
-### 3. 只作为建议的编辑
-
-除非用户明确想要更激进的优化，并且该改动有充分理由，否则以下内容只作为建议保留。
-
-常见示例：
-
-- assembly
-- 改变 ABI 形态的结构性重写
-- 改变公开 ABI、event 形态、custom error selector、CLI/script 输出、序列化字段或生成产物
-- 删除 migration、兼容 adapter、feature flag、审计日志、telemetry、rollback 或 cleanup 代码
-- 删除不可信输入、授权、资产流动、oracle 假设、callback、重入、并发或锁相关校验
-- 裁剪生成代码，或必须匹配 schema、反射系统、部署脚本、decorator、dependency injection container、生命周期 hook 的代码
-- 删除用于保护文档化配置范围、版本差异或外部集成的未来兼容代码
-- 低价值 Gas 优化，但会明显降低可读性
-- 只为了理论收益而进行的大范围多合约重构
-
-对 assembly 要比其他优化技术更加保守。当证明不完整时，保留代码，并说明还缺什么证据。
-
-## 编辑规则
-
-### 先 review，再 patch
-
-在编辑前先识别优化和语义裁剪机会，确保改动集是有意图且范围受控的。
-
-### 先证明，再 patch
-
-对每个非平凡删除或简化，先证明它为什么不会影响可观察行为。证据可以来自 caller 路径、数据流、控制流、类型约束、状态不变量、接口契约、storage 行为、外部调用顺序和副作用分析。
-
-对于 canonical-key helper，需要证明每个 caller 都传入同一个 account、id 或 key 来派生 storage reference，helper 并不是故意操作另一个 mapping entry，并且内部 lookup 会保留 delete、reload 和 aliasing 语义。当 caller 必须在复杂 mutation 中保留预取 slot、操作不同 mapping entry，或避免围绕 `delete` / 重新赋值的 reload 行为时，保留显式 storage reference。
-
-### 只 patch 最小明确收益
-
-只删除或重写已证明优化所需的代码。不要顺手重命名符号、重排文件、重写附近逻辑，或修改触达行之外的格式，除非优化本身需要。
-
-### 保留可观察边界
-
-除非用户明确批准更大范围兼容性改动，把以下内容视为硬性优化边界：
-
-- external/public 函数签名、ABI、export、override、生成客户端和 script/deployment 接口
-- storage layout、state variable 顺序、initializer 参数、storage gap、namespaced storage、migration 和 upgradeability 假设
-- event / log / error 形态、custom error selector、revert 行为、metrics、tracing 和审计轨迹
-- 输入校验、访问控制、auth/session 检查、资产流动、oracle/pair 假设、锁、callback、重入、cleanup 和 rollback
-- 框架生命周期 hook、反射、decorator、dependency injection、dynamic import 和生成代码
-- 承载业务含义、会计分类、协议状态或团队约定的领域命名
-
-如果代码看起来啰嗦但保护了这些边界，保留它，或者建议用更清晰的注释替代删除。
-
-### 遇到歧义就停止
-
-如果某个优化可能以非平凡方式改变语义、兼容性、诊断信息、执行顺序、持久化、storage 预期、集成假设或可观测性，不要猜测。
-
-应该指出该优化机会，解释风险，并把它保留为建议。
-
-### 保持范围收敛
-
-不要把优化检查变成大型重构、安全审计、功能重写、代码风格清理、formatter pass 或测试重写。用户明确要求时，再把这些工作单独路由。
-
-## Solidity 模式检查
-
-检查 Solidity loop 时，主动寻找低价值的两段式模式：
-
-```solidity
-uint256 count;
-for (...) {
-    if (condition) count++;
-}
-T[] memory out = new T[](count);
-for (...) {
-    if (!condition) continue;
-    out[index++] = value;
-}
-```
-
-如果第一轮 loop 只是为了给 event、return value 或本地结果确定 memory array 大小，优先改成单轮 loop：按最大输入长度分配、填入成功项，然后在 emit 或 return 前截断 memory array length。必须保持每个 item 的校验、跳过条件、顺序、重复处理和 event payload 语义完全一致。不要在 count 控制 storage write、授权、定价、外部调用、Gas-critical bound，或 over-allocation 会改变可观察行为的分支里应用这个模式。
+某个候选项不明确时，保留该代码、记录缺失证据并继续独立候选项，不停止整个优化，也不重复询问已解决的授权问题。
 
 ## 验证
 
-优先使用项目已有的最强验证路径。
+1. 宣称测得 Gas 节省前建立可比较基线：相同编译器、optimizer、EVM target、fixture、输入和初始状态。优先复用现有 benchmark、snapshot 或 gas report，区分部署 Gas 与运行 Gas，明确受影响操作。
+2. 编辑后运行相关行为的聚焦测试及修改文件的 `forge fmt --check`。已有检查未覆盖编译/产物，或项目要求时，运行 `forge build`。
+3. 共享 helper、核心会计、公共行为、存储或继承修改要覆盖所有受影响套件；依赖面广或无法可靠限定时运行完整 `forge test`。全项目优化或明确全量请求需要完整验证。局部独立改动不自动要求无关套件。
+4. 任何已授权的已部署代理升级，都要对照已部署版本的 layout 产物或使用项目升级验证器。缺少基线 layout 就是兼容性未验证，单元测试通过不足以证明。
+5. 修改后比较 Gas。没有实际前后测量时，只报告预期收益或结构简化，不凭直觉或测试通过宣称已测得节省。
 
-优先级：
+完成项目要求的检查并审阅最终 diff。必需检查通过后，仅因新增改动、失败或未解决疑点重复或扩大验证。区分回归、基线失败和环境阻塞，继续不受影响的检查并报告未完成验证。
 
-1. 现有 benchmark script 或 CI 性能基线
-2. 现有 gas snapshot 或 gas 对比流程
-3. 现有 gas-report 流程
-4. 受影响行为的聚焦测试或回归测试
-5. 触达文件的 `forge fmt --check`
-6. `forge build`
-7. 当触达代码是共享逻辑或外部可见行为时，运行更宽的 `forge test`
+## 最终回复
 
-如果可用，优先进行优化前后的对比，而不是只做单边测量。只有语义清理验证时，不要编造 Gas 改进。
-
-如果验证失败，需要说明失败看起来是由以下哪类原因导致：
-
-- 优化或裁剪改动本身
-- 仓库中已有的问题
-- 与 patch 无关的项目配置或依赖问题
-
-如果没有报告验证结果，不要声称优化工作已经完成。
-
-## 输出约定
-
-默认最终输出应包含：
-
-- 已 review 的合约和相关文件 / caller
-- 优化和裁剪范围
-- 已实现的 Gas changes
-- 已实现的语义 no-op 删除或简化
-- 每个非平凡删除或简化保持行为不变的证明
-- 建议但跳过的优化
-- 有意保留的可疑代码
-- 风险说明
-- 验证结果
-
-优化总结需要分为：
-
-- gas changes
-- removed semantic no-ops
-- code-structure changes
-- maintainability changes
-- preserved boundaries
-- deferred recommendations
-
-对于跳过的项目，需要包含原因：
-
-- 语义不清晰
-- 证明不完整
-- 公开契约风险
-- 安全或运维边界
-- upgradeability 或 storage-layout 风险
-- 生成代码或框架拥有的代码
-- 兼容性或 migration 风险
-- 需要激进的 assembly
-- 收益较低，不值得牺牲可读性
-- 验证信心不足
-
-## 响应风格
-
-- 直接
-- 基于具体文件
-- 优先追求真实价值和保持行为不变的删除，而不是聪明压缩
-- 不要只用测试作为冗余证明
-- 不要编造 Gas 改进
-- 不要模糊优化、测试、安全审计和宽泛重构之间的边界
+说明已实现的改进、非平凡裁剪的简短证明、影响兼容性变更的部署状态，以及验证/Gas 结果。仅对重要的暂缓候选项说明缺失证据或原因，省略空分类与重复清单。

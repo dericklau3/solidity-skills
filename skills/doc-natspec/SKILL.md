@@ -1,158 +1,53 @@
 ---
 name: doc-natspec
-description: "Use when reviewing, completing, or repairing NatSpec for Solidity / Foundry contracts after development, including public APIs, meaningful internal behavior, structs, events, overrides, and inherited documentation."
+description: "Use when reviewing, completing, or repairing Solidity / Foundry NatSpec, including public APIs, meaningful internal behavior, events, structs, and inherited documentation."
 license: AGPL-3.0-only
 metadata:
   author: derick
 ---
 
-# Write and Repair NatSpec for Solidity Contracts
+# Write and Repair Solidity NatSpec
 
-## Core Workflow
+## Follow This Skill
 
-### Understand the Request Before Editing
+Follow this skill's applicable scope, execution rules, verification requirements, and output contract. Do not silently skip required steps or substitute advice for authorized implementation. Explicit user instructions and higher-priority instructions take precedence. If a required step cannot be completed, state the specific limitation, continue independent work, and do not claim that step was completed.
 
-Use this skill after Solidity development is complete and the user wants NatSpec coverage repaired, completed, or checked. By default, inspect contracts under the Foundry project's `src/` directory unless the user specifies exact files.
+## Scope and Execution
 
-### Read the Project First
+For documentation edits, directly repair clear gaps within the requested scope. Explicit review-only requests remain read-only. Otherwise use the configured source directory, normally `src/`. Inspect project-owned interfaces/base contracts defining the in-scope API; edit their docs only when missing, inaccurate, or explicitly requested.
 
-Before editing NatSpec:
+Exclude vendored dependencies, pure tests, unrelated files, and libraries from default edits unless requested. Preserve implementation and unrelated work; do not turn documentation into a refactor or rename sweep. User instructions and existing authorization take precedence over skill defaults.
 
-1. Read `foundry.toml` when it exists.
-2. Search `src/` for the relevant Solidity contracts.
-3. Inspect project-owned interfaces that define the API of in-scope implementations, even when those interfaces are not themselves being edited.
-4. Exclude libraries from the default edit scope unless the user explicitly asks to document them.
-5. Read adjacent tests and supporting contracts when needed to resolve semantics.
-6. Read `remappings.txt`, `lib/`, `node_modules/`, or package config when inherited behavior, overrides, initializers, or imported types determine meaning.
+## Establish Meaning
 
-If a required file cannot be read, say so explicitly and do not pretend the documentation pass is complete.
+Read compiler configuration, in-scope code, and relevant inherited declarations. Use adjacent tests and callers to resolve behavior. When dependency hooks, modifiers, initializers, storage, or imported types determine meaning, resolve remappings and read the exact installed source.
 
-### Default Scope
+If a function, field, event parameter, or inherited guarantee remains ambiguous, leave that object's documentation unchanged, identify the uncertainty, and continue independent objects. Ask only when missing information materially determines the documentation and cannot be recovered from the project. Report unavailable files without treating the whole pass as blocked.
 
-By default, inspect:
+## Coverage and Quality
 
-- Solidity contracts under `src/`.
-- Project-owned interfaces that define the public API of those contracts.
-- User-specified Solidity files.
+Require accurate NatSpec for in-scope public/external functions, complex internal/private functions, and externally meaningful structs/events. Tiny helpers and obvious passthroughs need no forced internal documentation.
 
-By default, edit:
+For functions without sufficient inherited documentation:
 
-- In-scope implementation contracts.
-- Project-owned interfaces only when their documentation is missing, inaccurate, or the user explicitly asks to document interfaces.
+- Include `@notice`, one `@param` per input, and one `@return` per return value.
+- Include `@dev` for non-obvious permissions, restrictions, side effects, invariants, failure conditions, or edge cases.
+- Explain actual guarantees and units; avoid filler that repeats identifiers or promises absent from the implementation.
 
-By default, do not edit:
+For structs, explain their purpose and important fields. For events, explain when/why emission occurs and what parameters mean to off-chain consumers, including amounts/units and conditions where relevant.
 
-- Vendored dependency interfaces or libraries.
-- Pure test files.
-- Unrelated historical files.
+## Inheritance
 
-### Required Coverage
+Reuse sufficient, accurate inherited documentation when an override preserves its semantics. Use `@inheritdoc BaseName` when it clarifies or selects the source. Do not duplicate tags merely to satisfy coverage counts.
 
-NatSpec is required for:
+Read the inherited declaration before relying on it. Add local documentation when an override changes, narrows, extends, or clarifies behavior, permissions, accounting, state transitions, side effects, reverts, or integration guarantees. Explain the purpose of a non-obvious override and the library requirement it satisfies.
 
-- every `public` function in scope that does not appropriately inherit sufficient documentation;
-- every `external` function in scope that does not appropriately inherit sufficient documentation;
-- every complex `internal` function in scope;
-- every complex `private` function in scope;
-- every externally meaningful `struct` in scope;
-- every externally meaningful `event` in scope.
+For upgradeable contracts, document externally meaningful initializer order, reinitializer intent, storage assumptions, and upgrade restrictions. Do not claim dependency guarantees or verified layout compatibility without evidence.
 
-Tiny helpers, obvious passthrough wrappers, and trivial internal plumbing do not need forced NatSpec unless the user explicitly requests exhaustive internal coverage.
+## Verification and Final Response
 
-### Quality Standard
+After edits, run `forge doc` and inspect the diff for unintended implementation changes. The documentation build validates syntax/buildability, not semantic accuracy. Do not add unrelated tests for comment-only edits. Honor project-required checks; after they pass, repeat only for new changes, failures, or unresolved concerns.
 
-For standalone functions or functions whose behavior is not sufficiently documented by inheritance:
+If `forge doc` fails, distinguish new documentation errors from baseline compile/configuration issues or environment blockers. Report the actual command result and any unfinished coverage; do not imply a successful build.
 
-- require `@notice`;
-- require `@dev` when behavior, restrictions, permissions, side effects, invariants, or edge cases are non-obvious;
-- require one `@param` per input parameter;
-- require one `@return` per return value;
-- ensure the text matches the implementation;
-- reject low-information filler that only restates the identifier;
-- avoid documenting behavior the implementation does not guarantee.
-
-For `struct` declarations:
-
-- explain what the struct represents;
-- explain important fields individually;
-- focus on field meaning instead of repeating the type.
-
-For `event` declarations:
-
-- explain when and why the event is emitted;
-- explain important parameters individually;
-- make the event understandable for off-chain observers and integrators.
-
-Comments must be accurate, specific, and useful to both documentation readers and reviewers. Passing `forge doc` is the minimum verification bar, not the quality bar.
-
-### Inheritance and `@inheritdoc`
-
-Do not mechanically duplicate inherited documentation.
-
-When an override preserves the documented behavior of a project-owned interface or base contract:
-
-- prefer inherited NatSpec or `@inheritdoc` instead of copying the same `@notice`, `@param`, and `@return` text into the implementation;
-- use `@inheritdoc BaseName` when an explicit inheritance reference improves clarity or is needed to identify which base declaration supplies the documentation;
-- add local `@dev` or fuller local NatSpec only when the override changes, narrows, extends, or clarifies behavior that a caller or reviewer must understand.
-
-When an override materially changes behavior, permissions, side effects, revert conditions, accounting, state transitions, or integration semantics, do not rely on inherited docs alone. Document the changed behavior explicitly.
-
-Do not add `@inheritdoc` blindly. First inspect the inherited declaration and confirm that its documentation is correct and sufficient for the implementation being documented.
-
-### Dependency and Inheritance Rules
-
-When documenting contracts that inherit from or compose OpenZeppelin or other dependencies:
-
-- Read the installed dependency source before documenting overrides, hooks, modifiers, initializers, inherited storage, or extension behavior.
-- Do not duplicate imported library NatSpec unless the user's contract changes the behavior or integration semantics.
-- For project-owned interfaces and base contracts, inspect their NatSpec as part of understanding the public API even if they are outside the default edit scope.
-- Document why a user-defined override exists when that reason is not obvious from the inherited API, what inherited requirement it satisfies, and what assumptions it preserves.
-- For upgradeable contracts, document initializer order, reinitializer intent, storage-layout assumptions, and externally meaningful upgrade restrictions when they are part of the contract's public integration surface.
-- Do not claim guarantees from a library component unless the installed source actually provides them.
-
-## Editing Rules
-
-### Patch Clear Gaps Directly
-
-If the semantics are local and clear from code, naming, tests, inherited declarations, and call paths, directly add or improve the NatSpec comments.
-
-### Prefer Inheritance Over Duplication
-
-If a function already receives complete and accurate inherited NatSpec, do not add redundant local comments merely to satisfy tag-count expectations. Documentation quality and accuracy take priority over duplicated coverage.
-
-### Stop on Ambiguity
-
-If the meaning of a function, field, event parameter, override, or inherited guarantee cannot be established reliably, do not invent documentation. Call out the exact object, explain the ambiguity, and leave it unchanged.
-
-### Keep Scope Tight
-
-Do not turn a NatSpec pass into a refactor, rename sweep, or repository-wide style rewrite.
-
-## Verification
-
-After edits, run `forge doc`.
-
-If it fails, explain whether the failure appears caused by:
-
-- the new NatSpec edits;
-- a pre-existing compile or configuration issue;
-- a broader project problem unrelated to the current documentation patch.
-
-Do not claim the work is complete without reporting the `forge doc` result.
-
-## Output Contract
-
-Default final output should include:
-
-- reviewed files;
-- whether project-owned interfaces or inherited declarations were inspected;
-- `forge doc` result;
-- any remaining documentation risks or unclear semantics.
-
-## Response Style
-
-- Be direct.
-- Stay file-grounded.
-- Do not fabricate meaning.
-- Prefer accurate inherited documentation over duplicated comments.
-- Do not confuse minimum tag coverage with good documentation.
+Briefly summarize files documented, relevant interface/inheritance coverage, `forge doc` result, and remaining ambiguity. Omit empty categories and generic advice.

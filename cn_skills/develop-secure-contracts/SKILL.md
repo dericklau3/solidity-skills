@@ -1,183 +1,59 @@
 ---
 name: develop-secure-contracts
-description: "使用 OpenZeppelin Contracts 库开发安全的智能合约。当用户需要将 OpenZeppelin 库组件集成到现有或新的合约中时使用，包括代币标准（ERC20、ERC721、ERC1155）、访问控制（Ownable、AccessControl、AccessManager）、安全组件（Pausable、ReentrancyGuard）、治理（Governor、timelock）或账户（多签、账户抽象）等。涵盖从库源码中发现集成模式、使用 CLI 合约生成器，以及库优先（library-first）的集成方法。支持 Solidity、Cairo、Stylus、Stellar 和 Sui Move。"
+description: "用于在实际使用 Solidity 0.8.30 或更新编译器的项目中集成或扩展 OpenZeppelin Contracts。"
 license: AGPL-3.0-only
 metadata:
   author: OpenZeppelin
 ---
 
-# 使用 OpenZeppelin 开发安全的智能合约
+# 集成 OpenZeppelin Contracts
 
-## 核心工作流程
+## 遵守本技能
 
-### 回复前先理解用户需求
+执行时遵守本技能适用的范围、执行规则、验证要求和输出约定。不静默跳过必需步骤，不用建议代替已授权的实现。用户明确指令及更高优先级指令优先。必需步骤无法完成时，说明具体限制、继续独立工作，不宣称该步骤已经完成。
 
-对于概念性问题（例如“Ownable 是如何工作的？”），只进行解释，不需要生成代码。对于实现类请求，则按照下面的工作流程执行。
+## 范围
 
-### 关键要求：始终先阅读项目
+本技能适用于实际使用 **Solidity 0.8.30 或更新版本**编译的项目。读取 pragma 与实际编译器配置，宽泛 pragma 本身不足以证明版本。如果配置版本更旧，说明不匹配并采用适合该版本的指导，不套用本技能的版本专属规则，也不静默升级编译器。
 
-在生成代码或建议修改之前：
+概念问题直接解释。实现请求在已授权范围内直接修改现有合约；只有用户要求替换时才替换。用户明确指令优先于技能默认规则，沿用已有授权，从项目上下文解决常规选择。
 
-1. **搜索用户项目**中的现有合约（使用 `Glob` 搜索 `**/*.sol`、`**/*.cairo`、`**/*.rs`、`**/*.move` 等）
-2. **阅读相关合约文件**，了解项目中已经存在的实现
-3. **默认采用集成，而不是替换** —— 当用户说“增加暂停功能”或“改成可升级合约”时，默认含义是修改现有代码，而不是重新生成一个全新的合约。只有用户明确要求（例如“从头开始”“替换这个合约”）时才进行替换。
+## 确定集成方式
 
-如果某个文件无法读取，必须明确指出失败情况 —— 报告尝试读取的路径以及失败原因，并询问路径是否正确。绝不能在文件实际上无法读取时，静默退回到通用回答，好像该文件不存在一样。
+1. 使用可用文件搜索工具定位范围内的 `.sol`，例如 `rg --files -g '*.sol'`。阅读目标合约、相关测试和编译器/包配置。通过 remapping、import 定位实际安装依赖，使用 `contracts-upgradeable` 时也要解析对应依赖。
+2. 阅读相关组件、NatSpec 及有帮助的本地示例/测试。根据该版本确认 API、`virtual` 扩展点、hook、modifier、继承、constructor/initializer 参数和 storage 要求，不根据 v4 习惯推断 v5 hook。
+3. 优先采用能满足请求的现有组件，通过 import 组合/继承，或仅使用支持的扩展点。只有已安装库不能提供所需行为时才写自定义逻辑。不复制库源码，也不重复实现已有权限、暂停或接口检测机制。
+4. 确定最小兼容改动：import、继承、override、guard 和初始化。检查 override 冲突、安全组件重复，以及对 caller、event、error、脚本、测试和文档的影响。
 
-### 基本原则：优先使用库组件，而不是自定义代码
+缺少依赖时，检查声明版本/lockfile，仅将匹配版本的官方源码作为明确披露的备用依据。无法确定安装版本意味着证据不足，不代表可以假设最新 API。文件无法读取时说明路径和原因，继续独立工作，仅在缺失信息影响正确性时询问。
 
-在编写**任何**逻辑之前，先搜索 OpenZeppelin 库中是否已经存在对应组件：
+## 实施改动
 
-1. **存在完全匹配的组件？** 直接导入并使用 —— 继承它、实现它的 trait，或通过组合方式使用。完成。
-2. **存在接近需求的组件？** 导入并扩展它 —— 只重写库明确允许重写的函数（例如 `virtual` 函数、hook、可配置参数）。
-3. **完全没有匹配组件？** 只有这种情况下才编写自定义逻辑。在此之前，必须先浏览库的目录结构进行确认。
+保留无关修改、请求之外的业务语义和项目约定。在现有代码中完成集成，不生成替代脚手架或顺手清理相邻代码风格。
 
-**绝不要把库的源码复制或嵌入到用户合约中。** 应始终从依赖中进行 import，这样项目才能持续获得安全更新。库中已经提供的功能，不要手写重复实现：
-- 当已经存在 `Pausable` 或 `ERC20Pausable` 时，不要自己编写 `paused` modifier
-- 当已经存在 `Ownable` 时，不要自己编写 `require(msg.sender == owner)`
-- 当库的基础合约已经处理 ERC165 时，不要自行实现 ERC165 逻辑
+可升级合约需检查部署上下文、storage layout、继承顺序、namespaced storage/gap、initializer/reinitializer 顺序和升级授权。已有代理的新实现必须兼容该代理的状态。宣称兼容前，对照已部署基线验证或使用项目升级验证器；测试通过不足以证明。缺少基线证据时明确标记未验证。
 
-### 方法论
+### Solidity 0.8.30+ 校验风格
 
-主要工作流程是：**通过阅读库源码发现集成模式**。
+新增或实质修改的简单 guard 优先使用 `require(validCondition, Errors.Xxx(...))`。复用项目的 `Errors` 命名空间；新增错误优先放在共享 `Errors.sol`，已有其他约定时遵循项目。
 
-1. 检查用户项目当前已经 import 了哪些内容
-2. 阅读项目已安装依赖中的源码和文档
-3. 确定该依赖要求哪些函数、modifier、hook 和 storage
-4. 将这些要求应用到用户的合约中
+```solidity
+require(account != address(0), Errors.ZeroAddress());
+require(balance >= amount, Errors.InsufficientBalance(balance, amount));
+```
 
-完整的逐步流程见下方 [模式发现与集成](#模式发现与集成)。
+保留现有 custom error，不改成 revert string。依赖分支的失败逻辑可保留 `if (...) revert ...`；用户明确指定风格时遵循用户。不仅为统一语法而触碰无关 guard。
 
-### 将 CLI 生成器作为参考
+`require` 会无条件求值所有参数。转换 `if/revert` 前检查错误参数求值，包括可能 revert、有副作用或有明显成本的调用。转换会改变行为或引入不合理工作时，保留条件求值。
 
-使用 `npx @openzeppelin/contracts-cli` 生成参考实现，用于发现正确的集成模式：
-先生成一个基础版本到文件，再生成一个启用目标功能的版本到另一个文件，对两者执行 diff，然后把差异应用到用户代码中。CLI 输出应视为规范的正确集成参考 —— 用它来确认某个功能需要哪些 import、继承、storage 和 override。
+### 可选 CLI 参考
 
-关于“生成 → 比较 → 应用”的详细流程，请参见 [CLI 生成器](#cli-生成器)。
+仅当生成示例有助于解决集成疑问时使用 `@openzeppelin/contracts-cli`。通过 `--help` 确认命令和参数，项目已固定版本时使用该版本。按需将基础版和功能版生成到临时文件，对比后仅应用经实际安装源码验证的相关变化。CLI 输出不能覆盖项目依赖版本这一事实依据。CLI 没有对应命令不代表库缺少组件，继续通过源码集成。
 
-如果需要的功能没有对应 CLI 命令，则使用 [模式发现与集成](#模式发现与集成) 中的通用方法。没有 CLI 命令并不代表库不支持该功能，只代表没有对应生成器。
+## 验证与完成
 
-## 模式发现与集成
+通过项目正常构建/测试命令完成编译，运行变更行为的聚焦集成/回归测试。同步受影响的 caller、脚本、测试和文档，检查修改文件格式和 diff。
 
-这是一个通过阅读依赖源码，发现并应用 OpenZeppelin 合约集成模式的流程指南。适用于任何生态系统和任何库版本。
+共享继承、初始化、权限、会计或公共行为变更要覆盖全部受影响套件；无法限定影响面时运行全量。完成明确的全量请求及项目必需检查。通过后，仅因新增改动、失败或未解决疑点重复或扩大验证。将基线失败、环境阻塞与回归分开报告。
 
-**前置条件：** 始终遵循上面的“库优先”决策树（优先使用库组件而不是自定义代码，并且绝不复制/嵌入库源码）。
-
-### 第 1 步：识别依赖并搜索库
-
-1. 搜索项目中的合约文件：使用 `Glob` 搜索 `**/*.sol`、`**/*.cairo`、`**/*.rs`、`**/*.move`，或使用下方查询表中对应生态的文件扩展名。
-2. 阅读现有合约中的 import/use 语句，确认当前已经使用了哪些 OpenZeppelin 组件。
-3. 在项目依赖树中找到已经安装的依赖：
-   - Solidity：`node_modules/@openzeppelin/contracts/`（Hardhat/npm）或 `lib/openzeppelin-contracts/`（Foundry/forge）
-   - Cairo：根据 `Scarb.toml` 中的依赖定位 —— 源码由 Scarb 缓存
-   - Stylus：根据 `Cargo.toml` 定位 —— 源码位于 `target/` 或 Cargo registry 缓存（`~/.cargo/registry/src/`）
-   - Stellar：根据 `Cargo.toml` 定位 —— 使用与 Stylus 相同的 Cargo 缓存位置
-   - Sui Move：根据 `Move.toml` 定位 —— 构建后，MVR 源码缓存于 `~/.move/`，同时每个依赖会镜像到 `build/<project_package>/sources/dependencies/<move_package_name>/`
-4. 浏览依赖目录，发现可用组件。对已安装源码使用 `Glob` 模式搜索（例如 `node_modules/@openzeppelin/contracts/**/*.sol`）。不要凭记忆假设库里有哪些内容 —— 必须通过列出目录进行验证。
-5. 如果本地没有安装该依赖，则 clone 或浏览官方仓库（见下方查询表）。
-
-### 第 2 步：阅读依赖源码和文档
-
-1. 阅读与用户需求相关组件的源码文件。
-2. 查找源码中的文档：Solidity 中的 NatSpec 注释（`///`、`/** */`），Rust 和 Cairo 中的文档注释（`///`），以及组件目录中的 README 文件。
-3. 使用“基本原则”中的决策树确定集成策略：
-   - 如果组件可以直接满足需求 → import 并原样使用。
-   - 如果需要定制 → 找出库提供的扩展点（`virtual` 函数、hook 函数、可配置的构造函数参数），然后 import 并扩展。
-   - 只有当没有任何组件覆盖需求时 → 才编写自定义逻辑。
-4. 确定**公共 API**：暴露的函数/方法、发出的事件、定义的错误。
-5. 确定**集成要求** —— 这是最关键的一步：
-   - 集成方**必须**实现的函数（抽象函数、trait 方法、hook）
-   - 必须应用到集成方函数上的 modifier、decorator 或 guard
-   - 必须传入的 constructor 或 initializer 参数
-   - 必须声明的 storage 变量或状态
-   - 必须实现的继承关系或 trait（始终通过 import 完成，绝不能复制源码）
-6. 在同一仓库中搜索示例合约或测试，确认正确用法。优先检查 `test/`、`tests/`、`examples/` 或 `mocks/` 目录。
-
-### 第 3 步：提取最小集成模式
-
-根据第 2 步的结果，构建实现该功能所需的最小修改集合：
-
-- 需要新增的 **import / use 语句**
-- 需要新增的**继承 / trait 实现**（始终从依赖中 import）
-- 需要声明的 **storage**
-- **constructor / initializer** 修改（新增参数、初始化调用）
-- 需要新增的**函数**（必须实现的 override、hook、公共 API）
-- 需要修改的**现有函数**（增加 modifier、调用 hook、触发 event）
-
-如果合约是可升级合约，上述任何改动都可能影响 storage 兼容性。在应用修改之前，应先查阅对应的升级类 skill。
-
-不要加入依赖本身并不要求的额外内容。这应该是“没有该功能的合约”和“具有该功能的合约”之间的**最小 diff**。
-
-### 第 4 步：将模式应用到用户合约
-
-1. 阅读用户现有的合约文件。
-2. 使用 `Edit` 工具应用第 3 步中的修改。不要替换整个文件 —— 应将改动集成到现有代码中。
-3. 检查冲突：重复的访问控制系统、冲突的函数 override、不兼容的继承关系。完成前必须解决这些问题。
-4. 不要让用户自己去修改 —— 应直接应用修改。
-
-### 仓库与文档查询表
-
-| 生态 | 仓库 | 文档 | 文件扩展名 | 依赖位置 |
-|-----------|-----------|---------------|----------------|-------------------|
-| Solidity | [openzeppelin-contracts](https://github.com/OpenZeppelin/openzeppelin-contracts) | [docs.openzeppelin.com/contracts](https://docs.openzeppelin.com/contracts) | `.sol` | `node_modules/@openzeppelin/contracts/` 或 `lib/openzeppelin-contracts/` |
-| Cairo | [cairo-contracts](https://github.com/OpenZeppelin/cairo-contracts) | [docs.openzeppelin.com/contracts-cairo](https://docs.openzeppelin.com/contracts-cairo) | `.cairo` | Scarb 缓存（根据 `Scarb.toml` 定位） |
-| Stylus | [rust-contracts-stylus](https://github.com/OpenZeppelin/rust-contracts-stylus) | [docs.openzeppelin.com/contracts-stylus](https://docs.openzeppelin.com/contracts-stylus) | `.rs` | Cargo 缓存（`~/.cargo/registry/src/`） |
-| Stellar | [stellar-contracts](https://github.com/OpenZeppelin/stellar-contracts)（[Architecture](https://github.com/OpenZeppelin/stellar-contracts/blob/main/Architecture.md)） | [docs.openzeppelin.com/stellar-contracts](https://docs.openzeppelin.com/stellar-contracts) | `.rs` | Cargo 缓存（`~/.cargo/registry/src/`） |
-| Sui Move | [contracts-sui](https://github.com/OpenZeppelin/contracts-sui)（[llms.txt](https://raw.githubusercontent.com/OpenZeppelin/contracts-sui/main/llms.txt) · [ARCHITECTURE](https://raw.githubusercontent.com/OpenZeppelin/contracts-sui/main/ARCHITECTURE.md)） | [docs.openzeppelin.com/contracts-sui](https://docs.openzeppelin.com/contracts-sui) | `.move` | Move Registry 缓存（`~/.move/`，根据 `Move.toml` 定位） |
-
-### 目录结构约定
-
-在各个仓库中，通常可以从以下位置寻找对应组件：
-
-| 类别 | Solidity | Cairo | Stylus | Stellar |
-|----------|---------|-------|--------|---------|
-| 代币 | `contracts/token/{ERC20,ERC721,ERC1155}/` | `packages/token/` | `contracts/src/token/` | `packages/tokens/` |
-| 访问控制 | `contracts/access/` | `packages/access/` | `contracts/src/access/` | `packages/access/` |
-| 治理 | `contracts/governance/` | `packages/governance/` | — | `packages/governance/` |
-| 代理 / 升级 | `contracts/proxy/` | `packages/upgrades/` | `contracts/src/proxy/` | `packages/contract-utils/` |
-| 工具 / 安全 | `contracts/utils/` | `packages/utils/`、`packages/security/` | `contracts/src/utils/` | `packages/contract-utils/` |
-| 账户 | `contracts/account/` | `packages/account/` | — | `packages/accounts/` |
-
-搜索某个组件时，优先浏览这些路径。
-
-**Sui Move** 不在上面的固定目录表格中，并且没有 `@openzeppelin/contracts-cli` 生成器，因此应始终使用前面介绍的模式发现方法 —— 将某个 package 的 `examples/` 作为规范集成示例进行适配，并通过 MVR import，而不是复制源码。其余信息（package 集合、组合方式、代码风格约定、精确 API 和工具链）都应从库自身的元数据中发现，首先查看 [`llms.txt`](https://raw.githubusercontent.com/OpenZeppelin/contracts-sui/main/llms.txt)；`setup-sui-contracts` skill 覆盖完整的项目设置、依赖、`--build-env` 构建和质量门禁流程。
-
-### 已知的版本特定注意事项
-
-不要根据过去的知识假设 override 点 —— 必须始终通过阅读项目当前安装的源码进行确认。旧版本中标记为 `virtual` 的函数，在新版本中可能已经不再是 `virtual`，因此不能继续 override。源码中的 NatSpec 会指出正确的 override 点（例如：`NOTE: This function is not virtual, {X} should be overridden instead`）。
-
-一个已知示例是：Solidity ERC-20 的 transfer hook 在 v4 和 v5 之间发生了变化。在建议 override 之前，必须阅读项目当前安装的 `ERC20.sol`，确认哪个函数实际被标记为 `virtual`。
-
-## CLI 生成器
-
-`@openzeppelin/contracts-cli` 包可以通过命令行生成 OpenZeppelin 合约参考实现。只要目标合约类型存在对应命令，就应在“生成 → 比较 → 应用”工作流中把它作为参考来源。
-
-### 发现命令和选项
-
-运行 `npx @openzeppelin/contracts-cli --help` 列出所有可用命令。每个命令对应一种合约类型（例如 `solidity-erc20`、`cairo-erc721`、`stellar-fungible`）。运行 `npx @openzeppelin/contracts-cli <command> --help` 查看该命令可用的选项。不要依赖过去的知识来判断有哪些选项；由于 CLI 可能已经更新，因此每次会话开始时都应先检查 `--help`。
-
-### “生成 → 比较 → 应用”快捷流程
-
-当目标合约类型存在 CLI 命令时，将生成结果输出到临时文件并进行 diff，从而避免把大量生成的合约代码放进对话上下文：
-
-1. **生成基础版本** —— 只使用必需参数，关闭所有可选功能，并输出到文件：
-   ```bash
-   npx @openzeppelin/contracts-cli solidity-erc20 --name MyToken --symbol MTK > /tmp/oz-baseline.sol
-   ```
-2. **生成启用目标功能的版本** —— 再运行一次，并启用需要的功能，输出到第二个文件：
-   ```bash
-   npx @openzeppelin/contracts-cli solidity-erc20 --name MyToken --symbol MTK --pausable > /tmp/oz-variant.sol
-   ```
-3. **比较** —— 对两个文件执行 diff，准确识别发生了哪些变化（import、继承、state、constructor、函数、modifier）：
-   ```bash
-   diff /tmp/oz-baseline.sol /tmp/oz-variant.sol
-   ```
-4. **应用** —— 修改用户现有合约，加入发现的这些变化
-
-对于会相互影响的功能（例如访问控制 + 可升级性），还应额外生成一个同时启用这些功能的组合版本进行比较。
-
-### 当不存在 CLI 命令，或目标功能未被 CLI 覆盖时
-
-没有 CLI 命令**并不代表**库不支持该功能，只代表该合约类型没有生成器。此时必须退回使用 [模式发现与集成](#模式发现与集成) 中的通用方法。
-
-同样，如果某个合约类型存在 CLI 命令，但 CLI 没有暴露某项具体功能对应的选项，也不要停在这里。针对该功能退回模式发现流程：阅读项目中已安装的库源码，找到相关组件，提取它的集成要求，然后应用到用户合约中。
+最终说明已实现行为、与改动相关的安装版本证据、实际验证及剩余兼容性或执行限制。回复长度与改动规模相称。

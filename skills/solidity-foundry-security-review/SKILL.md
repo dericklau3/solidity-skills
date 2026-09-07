@@ -8,6 +8,10 @@ metadata:
 
 # Review Solidity Contracts and Protocols in Foundry Projects
 
+## Follow This Skill
+
+Follow this skill's applicable scope, execution rules, verification requirements, and output contract. Do not silently skip required steps or substitute advice for authorized implementation. Explicit user instructions and higher-priority instructions take precedence. If a required step cannot be completed, state the specific limitation, continue independent work, and do not claim that step was completed.
+
 ## Core Principle
 
 Do not begin with a vulnerability taxonomy. First reconstruct what the protocol promises, how value moves, who can change state, and which properties must always hold. A material finding is a demonstrated violation of a business rule, invariant, or trust assumption—not merely unusual code.

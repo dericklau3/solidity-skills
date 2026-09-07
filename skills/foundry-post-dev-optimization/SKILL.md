@@ -1,6 +1,6 @@
 ---
 name: foundry-post-dev-optimization
-description: "Use when Solidity or Foundry contract development is complete and a post-dev optimization pass is needed for gas, semantic no-op pruning, code structure, or maintainability without turning the work into a security audit or full refactor."
+description: "Use for post-development Solidity / Foundry gas optimization and proven semantic no-op pruning, including deployment-aware error and storage optimization."
 license: AGPL-3.0-only
 metadata:
   author: derick
@@ -8,258 +8,67 @@ metadata:
 
 # Optimize Solidity Contracts After Development
 
-## Core Workflow
+## Follow This Skill
 
-### Understand the Request Before Editing
+Follow this skill's applicable scope, execution rules, verification requirements, and output contract. Do not silently skip required steps or substitute advice for authorized implementation. Explicit user instructions and higher-priority instructions take precedence. If a required step cannot be completed, state the specific limitation, continue independent work, and do not claim that step was completed.
 
-Use this skill after Solidity / Foundry development is complete and the user wants a focused optimization pass over existing contracts.
+## Scope and Execution
 
-This skill covers post-development gas optimization and behavior-preserving semantic pruning together. Treat redundant variables, dead branches, thin wrappers, and repeated calculations as optimization work when their removal improves gas, code structure, or maintainability.
+Optimize gas and remove proven semantic no-ops in the requested contracts; otherwise use the configured source directory. For an optimization request, implement clear, supported improvements directly. An explicit review-only request stays read-only. This skill does not authorize new features, a security audit, or a broad refactor.
 
-This skill is not for initial implementation, style sweeps, broad refactors, minification, security audits, or speculative architecture cleanup.
+Read compiler/optimizer settings, target contracts, affected callers, tests, scripts, and exact installed dependencies. Trace overrides, data/control flow, external calls, and observable outputs before choosing changes. Inspect existing gas measurement workflows. Preserve unrelated changes; exclude vendored code, generated files, and unrelated formatting from edits. Inspect interfaces and deployment artifacts when needed to determine compatibility.
 
-### Read the Project First
+## Establish Deployment Status
 
-Before making optimization or pruning edits:
+Use explicit user statements and project deployment records for the affected contracts and supported chains. No deployment file or address in the checkout is not proof that a contract has never been deployed. If status remains unknown, continue deployment-independent optimizations and ask only when a deployment-dependent change is otherwise ready.
 
-1. Read `foundry.toml` when it exists.
-2. Search `src/` for Solidity contracts in scope.
-3. Exclude interfaces unless the user explicitly asks to include them.
-4. Read adjacent tests, mocks, fixtures, scripts, and helper contracts when needed to understand intended behavior.
-5. Read `remappings.txt`, `lib/`, `node_modules/`, and package config when imports, inheritance, or library versions affect the optimization.
-6. Search for every caller, override, implementation, test, fixture, script, generated client, and public export that may observe code being changed or pruned.
-7. Trace relevant data flow from assignment to observation: return value, persisted state, emitted/logged output, external call, script output, ABI encoding, or test assertion.
-8. Trace relevant control flow: guards, modifiers, earlier validation, revert paths, state-machine transitions, hooks, callbacks, and external calls.
-9. Check whether public contracts depend on the current shape: ABI signatures, event fields, custom error selectors, revert behavior, storage layout, script arguments, generated artifacts, or deployment assumptions.
-10. Check whether the repository already has a benchmark, snapshot, gas-report, or other optimization verification flow.
+| Status | Error and storage policy |
+| --- | --- |
+| Confirmed not deployed on-chain and not an upgrade to existing on-chain state | Prioritize gas: directly replace revert strings with suitable custom errors and pack/reorder storage when justified. These changes are within an optimization request and need no additional compatibility approval. |
+| Deployed, including a new implementation intended for an existing proxy | Preserve error selectors/revert contracts and storage compatibility. An unbroadcast implementation is not an undeployed system when it must read existing proxy state. |
+| Unknown | Preserve existing error and storage contracts until status is established; complete other proven optimizations. |
 
-If a required caller, contract, dependency, generated artifact, storage-layout reference, or verification path cannot be inspected, say so explicitly and do not treat the optimization as fully proven.
+Before-deployment permission covers error representation and storage arrangement, not arbitrary business, permission, asset-flow, function-signature, or event changes. Keep input domains and failure conditions intact. Changing variable widths requires proof that every supported value fits, including intermediate calculations and future configurations; do not introduce truncation or new overflow behavior.
 
-### Default Scope
+For pre-deployment changes, update affected error assertions, callers, interfaces, deployment/initialization scripts, and documentation. Regenerate affected ABI/layout artifacts through the project's normal process. Inspect inheritance, namespaced storage, assembly slot references, and any layout-sensitive tooling. Describe these as intentional pre-deployment gas changes, not semantic no-op deletions.
 
-By default, inspect:
+## Select and Prove Changes
 
-- Solidity contracts under `src/`
+### Local, behavior-preserving changes
 
-By default, exclude:
+Implement when caller/data/control-flow and side-effect evidence is complete:
 
-- interfaces
-- vendored dependencies
-- generated code
-- migrations and deployment metadata
-- lockfiles, snapshots, and formatting-only churn
+- Safe `memory` to `calldata`, redundant conversions/calculations, or repeated storage reads/lengths. Cached values must remain valid across mutations, hooks, callbacks, and external calls.
+- Dead assignments, ignored private returns, unreachable private branches, and duplicate guards whose preconditions hold on every reachable path.
+- Pass-through temporaries or wrappers only when they add no useful domain meaning, authorization, invariant, side effect, diagnostic, or gas benefit.
+- Redundant helper storage-reference parameters when the helper already receives the canonical mapping key. Prove every caller passes `mapping[key]` for that same key and preserve aliasing, delete/reload, and reassignment behavior. Keep explicit references when callers need a pre-fetched slot or another mapping entry.
+- Reuse of an installed library component only after reading its actual source and establishing equivalent behavior. Import it; do not paste library source.
 
-If the user specifies particular contracts or files, narrow scope accordingly.
+Tests alone do not prove redundancy. State the code invariant supporting each non-trivial deletion.
 
-### Optimization Categories
+### Changes requiring stronger evidence
 
-Review opportunities across:
+- Apply custom errors and storage packing/reordering under the deployment table above.
+- Use `unchecked` only after proving all reachable arithmetic ranges.
+- Optimize loops, merge branches, or alter dependency hooks only after preserving evaluation order, supported inputs, external-call ordering, side effects, and relevant inheritance/initializer requirements.
+- Retain the two-pass count-and-fill array pattern when replacing it would require manual memory-array length truncation. Do not make such truncation a default optimization; classify assembly techniques under the next section.
 
-- gas efficiency
-- semantic no-op pruning
-- code structure
-- maintainability
+### Recommendations unless separately authorized
 
-Do not optimize mechanically. A change is acceptable only when it preserves intended behavior for every supported caller and input, and the value is real enough to justify the edit.
+Assembly, function/event ABI redesign, deployed-system compatibility changes, and broad multi-contract rewrites require an explicit broader request and strong evidence. Do not remove untrusted-input validation, authorization, fund-transfer checks, oracle assumptions, callback/reentrancy protection, or supported-version safeguards without proving the same guarantee remains enforced on every reachable path.
 
-### Semantic Pruning Categories
-
-Actively look for behavior-preserving deletions and simplifications:
-
-- dead assignments and overwritten values
-- unused return values and unused outputs
-- duplicated guards or already-enforced checks
-- pass-through temporaries with no readability or debugging value
-- private or internal helper parameters that only pass through storage references or values already recoverable from a canonical key argument
-- unreachable branches under proven preconditions or state transitions
-- thin wrappers that add no boundary, invariant, retry, logging, authorization, normalization, domain vocabulary, or gas benefit
-- redundant conversions, repeated calculations, or no-op normalizations
-- over-defensive branches introduced by AI-generated code without a reachable purpose
-
-Do not prune because code "looks unused." Prune only after caller, data-flow, control-flow, type, state-invariant, interface-contract, and side-effect evidence proves the code cannot affect observable behavior.
-
-### Library and Version Rule
-
-Before replacing, simplifying, or micro-optimizing logic that overlaps with OpenZeppelin, Solady, token standards, proxy utilities, or other dependencies:
-
-- Locate and read the installed dependency source. Do not assume an API, hook, or storage pattern from memory.
-- Prefer importing, configuring, or extending a proven component over maintaining custom duplicated logic.
-- Never paste dependency source into the user's contract as an optimization.
-- Treat inherited hooks, required overrides, initializer order, namespaced storage, storage gaps, and state-variable order as optimization boundaries.
-- If a suggested optimization could affect storage layout, ABI, event semantics, access control, or external integration assumptions, leave it as a recommendation unless the user explicitly approves the broader change.
-
-## Optimization Tiers
-
-### 1. Safe Direct Edits
-
-Directly patch low-risk optimizations when semantics and proof are local and complete.
-
-Common examples:
-
-- `memory` to `calldata` where safe
-- caching repeated storage reads or lengths
-- deleting an assignment that is overwritten before any read
-- inlining a variable assigned once and read once when the name carries no domain meaning
-- removing an unreachable private branch after all reaching callers enforce the same precondition
-- removing a private return value when every caller ignores it and no interface requires it
-- removing redundant calculations, variables, or branches
-- removing a private helper storage-reference parameter when the helper already receives the canonical mapping key and every caller passes `mapping[key]` from that same key
-- deleting a wrapper that only calls one private helper and adds no invariant, side effect, or useful vocabulary
-- replacing local duplicate utility logic with an already-installed, well-scoped library component when the behavior is identical
-
-Only patch these when no public contract, side effect, diagnostic behavior, storage expectation, or framework convention depends on the current code.
-
-### 2. Conditional Edits
-
-Patch only when behavior is clear and verification is strong enough.
-
-Common examples:
-
-- custom errors replacing revert strings
-- `unchecked`
-- storage packing
-- loop optimization
-- state-variable reordering
-- reducing repeated reads around state transitions and external calls
-- merging duplicated branches with equivalent side effects and error behavior
-- deleting defensive checks around internal state after every mutation path is proven
-- simplifying repeated parsing, serialization, or normalization code
-- pruning compatibility branches for documented, unsupported versions or modes
-- changing inheritance, modifiers, or hooks to use a dependency-provided extension
-
-Only patch these when:
-
-- semantics are clear from code and context
-- the invariant is proven from code, not inferred from naming or current test coverage
-- error types, messages, logs, events, metrics, evaluation order, and revert behavior remain equivalent where observable
-- no storage-layout or upgradeability assumption is violated
-- no external integration expectation is broken
-- available verification is strong enough to justify the change
-
-### 3. Suggest-Only Edits
-
-Leave these as recommendations unless the user explicitly wants a more aggressive optimization pass and the change is strongly justified.
-
-Common examples:
-
-- `assembly`
-- ABI-shaping structural rewrites
-- changing public ABI, event shape, custom error selector, CLI/script output, serialized fields, or generated artifacts
-- deleting migrations, compatibility adapters, feature flags, audit logs, telemetry, rollback, or cleanup code
-- removing validation for untrusted input, authorization, asset movement, oracle assumptions, callbacks, reentrancy, concurrency, or locking
-- pruning generated code or code that must match a schema, reflection system, deployment script, decorator, dependency injection container, or lifecycle hook
-- deleting future-proofing that protects documented configuration ranges, version skew, or external integrations
-- low-value gas wins that materially reduce readability
-- broad multi-contract refactors needed only for theoretical gains
-
-Treat `assembly` more conservatively than other optimization techniques. When proof is incomplete, preserve the code and explain exactly what evidence is missing.
-
-## Editing Rules
-
-### Review Before Patching
-
-Identify optimization and semantic-pruning opportunities before editing so the change set stays intentional and bounded.
-
-### Prove Before Patching
-
-For each non-trivial deletion or simplification, first prove why the code cannot affect observable behavior. Use caller paths, data flow, control flow, type constraints, state invariants, interface contracts, storage behavior, external-call ordering, and side-effect analysis as evidence.
-
-For canonical-key helpers, prove every caller passes the same account, id, or key used to derive the storage reference, the helper does not intentionally operate on an alternate mapping entry, and internal lookup preserves delete, reload, and aliasing semantics. Keep explicit storage references when a caller must preserve a pre-fetched slot through complex mutations, operate on a different mapping entry, or avoid reloading around `delete` or reassignment behavior.
-
-### Patch The Smallest Clear Win
-
-Delete or rewrite only the code needed for the proven optimization. Do not opportunistically rename symbols, rearrange files, rewrite nearby logic, or change formatting outside touched lines unless the optimization requires it.
-
-### Preserve Observable Boundaries
-
-Treat the following as hard optimization boundaries unless the user explicitly approves a broader compatibility change:
-
-- external/public function signatures, ABI, exports, overrides, generated clients, and script/deployment interfaces
-- storage layout, state-variable order, initializer arguments, storage gaps, namespaced storage, migrations, and upgradeability assumptions
-- event/log/error shapes, custom error selectors, revert behavior, metrics, tracing, and audit trails
-- input validation, access control, auth/session checks, asset movement, oracle/pair assumptions, locks, callbacks, reentrancy, cleanup, and rollback
-- framework lifecycle hooks, reflection, decorators, dependency injection, dynamic imports, and generated code
-- domain names that encode business meaning, accounting categories, protocol states, or team conventions
-
-If code looks noisy but protects one of these boundaries, leave it in place or suggest a clearer comment instead of deleting it.
-
-### Stop on Ambiguity
-
-If an optimization could change semantics, compatibility, diagnostics, execution order, persistence, storage expectations, integration assumptions, or observability in a non-trivial way, do not guess. Name the opportunity, explain the risk, and leave it as a recommendation.
-
-### Keep Scope Tight
-
-Do not turn an optimization pass into a large refactor, security audit, feature rewrite, style sweep, formatter pass, or test rewrite. Route those separately when the user asks for them.
+For an unclear candidate, preserve that code, record the missing evidence, and continue independent candidates. Do not stop the entire pass or repeat an already-resolved approval question.
 
 ## Verification
 
-Use the strongest existing project-specific verification path first.
+1. Establish a comparable baseline before claiming measured gas savings: same compiler, optimizer, EVM target, fixtures, inputs, and initial state. Prefer existing benchmark, snapshot, or gas-report workflows. Separate deployment gas from runtime gas and identify affected operations.
+2. After edits, run focused tests for changed behavior and touched-file `forge fmt --check`. Run `forge build` when compilation/artifacts are not already covered or the project requires it.
+3. For shared helpers, core accounting, public behavior, storage changes, or inheritance changes, test all affected suites; use full `forge test` when dependencies are broad or cannot be bounded reliably. A repository-wide pass or explicit full-suite request requires full verification. Local independent changes do not automatically require unrelated suites.
+4. For any authorized deployed-proxy upgrade, compare against the deployed version's layout artifacts or use the project's upgrade validator. Missing baseline layout means compatibility is unverified; passing unit tests is insufficient.
+5. Compare gas after the change. Without an actual before/after measurement, report expected gas benefit or structural simplification. Do not claim measured savings from intuition or from a successful test alone.
 
-Priority:
+Honor required project checks and inspect the final diff. Once required checks pass, rerun or expand only for new changes, failures, or unresolved concerns. Distinguish regressions, baseline failures, and environment blockers; continue unaffected checks and report any incomplete validation.
 
-1. existing benchmark scripts or CI performance baselines
-2. existing gas snapshots or gas comparison workflows
-3. existing gas-report workflow
-4. focused tests or regression tests for the touched behavior
-5. touched-file `forge fmt --check`
-6. `forge build`
-7. broader `forge test` when the touched code is shared or externally visible
+## Final Response
 
-If available, prefer before-and-after comparison over one-sided measurement.
-
-Do not label a change as a **measured gas improvement** unless a before-and-after benchmark, snapshot, gas report, or equivalent measurement was actually run. Without measurement, describe it as an expected gas improvement, likely optimization, or structural simplification as appropriate.
-
-Do not fabricate gas improvements when only semantic cleanup was verified.
-
-If verification fails, explain whether the failure appears caused by:
-
-- the optimization or pruning change
-- a pre-existing repository issue
-- project configuration or dependency problems unrelated to the patch
-
-Do not claim the optimization work is complete without reporting the verification result.
-
-## Output Contract
-
-Default final output should include:
-
-- reviewed contracts and related files/callers
-- optimization and pruning scope
-- implemented gas changes
-- implemented semantic no-op deletions or simplifications
-- proof that each non-trivial deletion or simplification preserves behavior
-- suggested but skipped optimizations
-- suspicious code intentionally left unchanged
-- risk notes
-- verification result
-
-Separate the optimization summary into:
-
-- gas changes
-- removed semantic no-ops
-- code-structure changes
-- maintainability changes
-- preserved boundaries
-- deferred recommendations
-
-For skipped items, include the reason:
-
-- semantics unclear
-- proof incomplete
-- public contract risk
-- safety or operational boundary
-- upgradeability or storage-layout risk
-- generated or framework-owned code
-- compatibility or migration risk
-- requires aggressive `assembly`
-- low-value gain not worth readability loss
-- insufficient verification confidence
-
-## Response Style
-
-- Be direct
-- Stay file-grounded
-- Optimize for real value and behavior-preserving deletion, not clever compression
-- Do not cite tests alone as proof of redundancy
-- Do not fabricate gas improvements
-- Do not blur the boundary between optimization, testing, security review, and broad refactoring
+Report the implemented improvements, concise proof for non-trivial pruning, deployment status relevant to compatibility changes, and verification/gas results. Mention deferred candidates only when material, with the missing evidence or reason. Omit empty categories and repeated inventories.
