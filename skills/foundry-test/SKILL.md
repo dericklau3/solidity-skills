@@ -1,6 +1,6 @@
 ---
 name: foundry-test
-description: "Review and strengthen Solidity / Foundry tests after development. Use when users need high-value unit, fuzz, invariant, integration, or realistic-flow tests added or improved, `test/docs/*.md` maintained, and `forge test` verification reported."
+description: "Use when reviewing, adding, or strengthening tests for a Solidity / Foundry project, especially unit, fuzz, invariant, integration, accounting, access-control, asset-flow, or regression tests."
 license: AGPL-3.0-only
 metadata:
   author: derick
@@ -12,14 +12,14 @@ metadata:
 
 ### Understand the Request Before Editing
 
-For conceptual questions ("How should I test this contract?"), explain without editing code. For requests to add, review, improve, or document tests, proceed with the workflow below.
+For conceptual questions ("How should I test this contract?"), explain without editing code. For requests to add, review, or improve tests, proceed with the workflow below.
 
 ### CRITICAL: Always Read the Project First
 
 Before writing or changing tests:
 
-1. **Search the user's project** for Solidity contracts, Foundry tests, deployment scripts, helpers, mocks, fixtures, and `test/docs`.
-2. **Read the relevant files** to understand the existing behavior, test style, setup model, and documentation conventions.
+1. **Search the user's project** for Solidity contracts, Foundry tests, deployment scripts, helpers, mocks, and fixtures.
+2. **Read the relevant files** to understand the existing behavior, test style, and setup model.
 3. **Default to integration with the existing test suite, not replacement**. Add focused tests and helpers in the local style. Only reorganize or replace broad test structure when explicitly requested.
 
 If a file cannot be read, surface the failure explicitly. Report the path attempted and the reason. Never silently fall back to generic testing advice as if the project context does not exist.
@@ -33,6 +33,27 @@ Before adding any test, identify the behavior or guarantee it proves:
 3. **Expected behavior is ambiguous?** Stop and name the ambiguity instead of inventing assertions.
 
 Favor a smaller number of high-signal tests over broad mechanical coverage expansion.
+
+### Test Intent Must Be Visible In The Test Function
+
+For every new or materially changed `test...()` function, place a short comment at the very beginning of the function body that states the behavior, guarantee, or failure condition the test is intended to prove.
+
+Prefer one or two concise comment lines that explain **why the test exists**, not a line-by-line narration of the implementation.
+
+Example:
+
+```solidity
+function testWithdrawTransfersAssetsAndBurnsShares() public {
+    // Proves a normal withdrawal burns the caller's shares and transfers
+    // the corresponding assets without changing another user's position.
+
+    // setup / action / assertions...
+}
+```
+
+For fuzz tests, state the property and meaningful input domain. For invariant tests, state the long-lived protocol property that must hold across call sequences. For regression tests, state the bug or failure mode being prevented.
+
+Do not create separate test-purpose documentation files as part of this skill. Keep the purpose next to the executable test so reviewers can understand intent while reading the test itself.
 
 ### Dependency Rule: Test the Project's Actual Integration
 
@@ -48,11 +69,11 @@ When contracts inherit from or compose OpenZeppelin, Solady, Chainlink, Uniswap,
 
 The primary workflow is **behavior discovery from project source and existing tests**:
 
-1. Inspect contracts, tests, scripts, docs, mocks, and helpers.
+1. Inspect contracts, tests, scripts, mocks, and helpers.
 2. Inspect dependency source when imported behavior shapes the expected result.
 3. Identify entrypoints, assets, roles, accounting relationships, permissions, state transitions, and states that should never occur.
 4. Choose the lightest test layer that proves each behavior.
-5. Patch tests and matching `test/docs` together.
+5. Patch tests in the repository's existing style and state the purpose at the top of each new or materially changed `test...()` function.
 6. Run `forge test` and report the result.
 
 See [Behavior Discovery and Test Strengthening](#behavior-discovery-and-test-strengthening) for the full procedure.
@@ -69,9 +90,8 @@ Procedural guide for strengthening Foundry tests without turning the task into a
 2. Search `src/` for the contracts in scope.
 3. Read related tests under `test/`.
 4. Read deployment or setup scripts under `script/` when behavior depends on deployed configuration.
-5. Read existing `test/docs/*.md` when present.
-6. Read `remappings.txt`, `lib/`, `node_modules/`, and package config when dependency behavior matters.
-7. Read mocks, fixtures, and helper contracts only as needed to understand current setup.
+5. Read `remappings.txt`, `lib/`, `node_modules/`, and package config when dependency behavior matters.
+6. Read mocks, fixtures, and helper contracts only as needed to understand current setup.
 
 ### Step 2: Map Behaviors to Test Layers
 
@@ -117,6 +137,8 @@ High-signal unit tests normally cover:
 
 Do not write tests that only prove "does not revert" when state, balance, event, or accounting assertions are available.
 
+Every unit test added or materially changed must begin with a concise purpose comment describing the behavior or guarantee it proves.
+
 ### Step 4: Design Fuzz Tests
 
 Use fuzz tests when the risk is hidden in a broad input range rather than a single hand-picked example. Strong candidates include:
@@ -135,6 +157,8 @@ Fuzz tests should assert properties, not merely replay a unit test with random n
 - Deposit followed by withdraw returns the expected assets when no fees, yield, or rounding beyond the protocol's design applies.
 - Increasing an input produces a monotonic or otherwise expected change.
 - Invalid parameter ranges revert with the expected error.
+
+At the top of each new or materially changed fuzz test, state the property and relevant bounded input domain in a short comment.
 
 ### Step 5: Design Invariant Tests
 
@@ -161,6 +185,8 @@ Handler design rules:
 - Track ghost variables such as total deposited, withdrawn, fees, rewards, minted, or burned when protocol state alone is not enough to check accounting.
 - Keep invariant functions focused on core protocol properties; a few meaningful invariants are better than many trivial assertions.
 
+At the top of each new or materially changed invariant function, state the protocol property that must remain true across arbitrary handler call sequences.
+
 When an invariant fails, use Foundry's call sequence to reduce the smallest realistic reproducer. Preserve the failing test or reproducer until the protocol behavior or test assumption is resolved.
 
 ### Step 6: Prefer Project-Realistic Setup
@@ -169,7 +195,7 @@ When the project has reusable setup or deployment helpers, prefer using them so 
 
 Use mocks or direct helper shortcuts only when the shortcut is not the behavior under test. If the test claims to prove a real user path, the action should go through the relevant public entrypoint.
 
-For fork tests, pin the block when possible and document assumptions that affect assertions.
+For fork tests, pin the block when possible and document assumptions that affect assertions in the test code where they matter.
 
 ### Step 7: Patch Tests
 
@@ -182,29 +208,11 @@ Keep changes focused:
 - Avoid production refactors unless they are necessary to make the test possible and are within the user's request.
 - Use approximate assertions only when external math, rounding, timing, or unit conversion makes exact equality inappropriate.
 - Use Foundry tools such as `vm.prank`, `vm.startPrank`, `deal`, `vm.deal`, `vm.warp`, `vm.roll`, `vm.expectRevert`, `vm.expectEmit`, `bound`, `vm.assume`, `targetContract`, and `targetSelector` as needed, but prefer existing project helpers when they exist.
+- Put the test-purpose comment immediately after the opening brace of every new or materially changed `test...()` function, before setup/action/assertion code.
 
 If a new test fails, do not immediately weaken the assertion or rewrite the test to go green. Decide whether the test assumption is wrong or the protocol behavior is wrong. If the protocol may be wrong, keep the reproducing test, record trigger conditions, expected behavior, actual behavior, affected functions/assets, and the risk.
 
 Do not hide real issues by widening tolerance, adding `assume()` to exclude the failing case, or changing production behavior unless the user has confirmed the protocol bug and the fix is in scope.
-
-### Step 8: Maintain Test Documentation
-
-When adding or materially changing a test file, create or update its matching documentation under `test/docs`.
-
-Default convention:
-
-- `test/Foo.t.sol` -> `test/docs/FooTest.md`
-
-If the repository already uses another convention, follow the local convention.
-
-Each test doc should capture:
-
-- The test file's purpose and setup model
-- The major scenarios or test groups
-- Important helpers and what they prepare
-- Fork, mock, timing, rounding, or environment assumptions that matter
-
-Documentation should describe behavior, not repeat every assertion line-by-line.
 
 ## Verification
 
@@ -226,13 +234,12 @@ Do not claim completion without reporting the verification result.
 
 Default final output should include:
 
-- Files reviewed
-- Tests added or updated
-- Test docs added or updated
-- Unit tests added or improved, including the operations and guarantees covered
-- Fuzz tests added or improved, including parameter ranges and properties checked
-- Invariants added or improved, including why each invariant must hold, how it is checked, and which contracts it covers
-- Gaps intentionally skipped and why
-- `forge test` result
-- Potential protocol issues found during testing, including location, trigger, expected result, actual result, risk, and reproducing test when applicable
-- Remaining ambiguity or risk
+- Files reviewed.
+- Tests added or updated.
+- Unit tests added or improved, including the operations and guarantees covered.
+- Fuzz tests added or improved, including parameter ranges and properties checked.
+- Invariants added or improved, including why each invariant must hold, how it is checked, and which contracts it covers.
+- Gaps intentionally skipped and why.
+- `forge test` result.
+- Potential protocol issues found during testing, including location, trigger, expected result, actual result, risk, and reproducing test when applicable.
+- Remaining ambiguity or risk.
