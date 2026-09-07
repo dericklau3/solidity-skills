@@ -191,24 +191,6 @@ If an optimization could change semantics, compatibility, diagnostics, execution
 
 Do not turn an optimization pass into a large refactor, security audit, feature rewrite, style sweep, formatter pass, or test rewrite. Route those separately when the user asks for them.
 
-## Solidity Patterns To Check
-
-When reviewing Solidity loops, actively look for the low-value pattern:
-
-```solidity
-uint256 count;
-for (...) {
-    if (condition) count++;
-}
-T[] memory out = new T[](count);
-for (...) {
-    if (!condition) continue;
-    out[index++] = value;
-}
-```
-
-If the first loop only sizes memory for an event, return value, or local result, prefer a single loop that allocates the maximum input length, fills successful entries, then truncates the memory array length before emitting or returning. Keep all per-item validation, skip conditions, order, duplicate handling, and event payload semantics identical. Do not apply this when the count controls storage writes, authorization, pricing, external calls, gas-critical bounds, or any branch where over-allocation changes observable behavior.
-
 ## Verification
 
 Use the strongest existing project-specific verification path first.
@@ -223,7 +205,11 @@ Priority:
 6. `forge build`
 7. broader `forge test` when the touched code is shared or externally visible
 
-If available, prefer before-and-after comparison over one-sided measurement. Do not fabricate gas improvements when only semantic cleanup was verified.
+If available, prefer before-and-after comparison over one-sided measurement.
+
+Do not label a change as a **measured gas improvement** unless a before-and-after benchmark, snapshot, gas report, or equivalent measurement was actually run. Without measurement, describe it as an expected gas improvement, likely optimization, or structural simplification as appropriate.
+
+Do not fabricate gas improvements when only semantic cleanup was verified.
 
 If verification fails, explain whether the failure appears caused by:
 
