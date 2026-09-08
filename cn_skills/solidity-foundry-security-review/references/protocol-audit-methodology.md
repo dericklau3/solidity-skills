@@ -136,22 +136,7 @@
 
 会计差异不自动等于漏洞。确认攻击者能否制造差异、从中获利或用它造成 DoS。
 
-## 7. 精度与舍入
-
-审查所有除法、乘法、百分比、价格/份额转换、Decimals 转换、利息、费用和奖励公式。
-
-确定：
-
-- 是否应先乘后除；
-- 每个边界的单位和 Decimals；
-- Round Down/Up 对谁有利；
-- 拆分或重复操作能否累计利润；
-- Dust 能否锁死、被盗或用于攻击；
-- 0、1 Wei、最小有效值、边界 ±1、大值和最大支持值的行为。
-
-对 6 位 Token、8 位 Feed、18 位内部精度等混合 Decimals 做明确量纲分析，同时分析单向转换和往返转换。
-
-## 8. 经济模型
+## 7. 经济模型
 
 分析激励和攻击者盈利能力，不限于代码正确性。考虑有限资本、大额资本、闪电流动性、多地址、高交易次数、有利时机、MEV、任意合约和跨协议组合。
 
@@ -159,7 +144,7 @@
 
 对候选问题估算攻击本金、攻击成本、可收回本金、协议/用户损失和净利润。区分盈利型提取与攻击者不直接获利但能造成不成比例损害的 Griefing。
 
-## 9. Oracle
+## 8. Oracle
 
 将 Chainlink、TWAP、DEX Spot Price、自定义/签名/链下 Oracle、LP Price、Share Price、Fallback 和衍生价格映射到其控制的计算。
 
@@ -167,7 +152,7 @@
 
 除非协议证明安全，否则把 DEX Spot Price 视为可操纵。分析 Flash Swap、大额交易、低流动性、Donation、LP 操纵和同交易读写影响。追踪到抵押品、借款额度、清算、Mint/Redeem、份额和奖励。
 
-## 10. 外部协议集成
+## 9. 外部协议集成
 
 把每个外部协议和 Token 调用视为信任边界。阅读实际安装的接口和实现假设。
 
@@ -182,7 +167,7 @@
 - Callback 能否观察或重入中间状态；
 - 依赖失败时用户资金能否退出。
 
-## 11. Access Control
+## 10. Access Control
 
 盘点所有改变关键状态的外部可达函数，尤其是 Setter、Update、Upgrade、Withdraw、Rescue、Mint/Burn、Pause/Unpause 和 Initialize。
 
@@ -190,7 +175,7 @@
 
 验证谁能 Grant、Revoke、Renounce、Transfer 或恢复权限，以及两步/延迟转换能否绕过或永久阻塞。
 
-## 12. 可升级性
+## 11. 可升级性
 
 对 Transparent、UUPS、Beacon、Diamond 和自定义 Delegatecall Proxy，检查：
 
@@ -204,17 +189,32 @@
 
 解析实际代理模式和依赖源码。不要假设 Constructor 部署与 Proxy 初始化等价。
 
-## 13. 签名安全
+## 12. 签名安全
 
 对 EIP-712、Permit、Authorization、Meta-Transaction 和链下订单，验证签名摘要绑定所有安全关键参数：Signer、Action、Amount/Token/Position、Receiver、必要时的 Caller、Nonce、Deadline、Chain ID、Verifying Contract 和 Domain/Version。
 
 检查 Nonce 唯一性与消耗时机、取消、过期、签名可塑性、合约签名者、跨链/跨合约/跨操作 Replay、Domain Separator 变化和部分成交语义。
 
-## 14. 重入与 Callback
+## 13. 重入与 Callback
 
 分析单函数、跨函数、跨合约和 Read-only Reentrancy。追踪状态或会计处于中间态时的每个外部调用，包括 Token Hook、ERC-721/1155 Receiver、DEX/Flash Callback、Fallback/Receive 和任意用户目标。
 
 单个函数有 `nonReentrant` 不代表安全。确认 Callback 能否在 Invariant 恢复前进入其他函数、其他协议组件、被外部协议读取的 View 或特权 Callback 表面。
+
+## 14. 精度与舍入
+
+审查所有除法、乘法、百分比、价格/份额转换、Decimals 转换、利息、费用和奖励公式。
+
+确定：
+
+- 是否应先乘后除；
+- 每个边界的单位和 Decimals；
+- Round Down/Up 对谁有利；
+- 拆分或重复操作能否累计利润；
+- Dust 能否锁死、被盗或用于攻击；
+- 0、1 Wei、最小有效值、边界 ±1、大值和最大支持值的行为。
+
+对 6 位 Token、8 位 Feed、18 位内部精度等混合 Decimals 做明确量纲分析，同时分析单向转换和往返转换。
 
 ## 15. 闪电流动性
 
@@ -271,7 +271,6 @@ Severity 由 Impact 和 Likelihood 决定，并结合攻击成本、权限、资
 - [ ] 已审查业务流程、状态机、跨函数组合和失败路径。
 - [ ] 已独立推导关键 Invariant，并映射到状态修改操作。
 - [ ] 已对账 Asset/Share/Debt/Reward/Fee/Reserve Accounting。
-- [ ] 已检查精度、Decimals、舍入方向、Dust 和边界行为。
 - [ ] 已考虑经济激励、攻击成本/利润、大资本和跨协议组合。
 - [ ] 已审查 Oracle 来源、操纵、新鲜度、单位、Fallback 和下游影响。
 - [ ] 已审查外部集成、Callback、失败行为、Pause 和升级假设。
@@ -279,6 +278,7 @@ Severity 由 Impact 和 Likelihood 决定，并结合攻击成本、权限、资
 - [ ] 适用时已审查升级授权、Implementation 初始化、迁移和 Storage Layout。
 - [ ] 适用时已审查签名绑定、Nonce/Deadline/Domain 和 Replay 保护。
 - [ ] 已考虑单函数、跨函数、跨合约和 Read-only Reentrancy。
+- [ ] 已检查精度、Decimals、舍入方向、Dust 和边界行为。
 - [ ] 已考虑闪电流动性和交易排序/MEV 影响。
 - [ ] 已从源码审查协议支持的 Token 行为和兼容性假设。
 - [ ] 存在时已审查底层 Call、Assembly、Delegatecall、Storage、Memory 和 Returndata。

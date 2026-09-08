@@ -136,22 +136,7 @@ Compare actual balances with internal accounting only after determining which on
 
 An accounting difference is not automatically exploitable. Determine whether the attacker can create it, benefit from it, or use it to deny service.
 
-## 7. Precision and Rounding
-
-Review every division, multiplication, percentage, price/share conversion, decimal conversion, interest, fee, and reward formula.
-
-Determine:
-
-- whether multiplication should precede division;
-- the units and decimals at every boundary;
-- who benefits from rounding down/up;
-- whether splitting or repeating operations accumulates profit;
-- whether dust can become trapped, stolen, or weaponized;
-- behavior at zero, one wei, minimum valid input, boundary ±1, large values, and maximum supported values.
-
-Use concrete dimensional analysis for mixed decimals such as 6-decimal tokens, 8-decimal feeds, and 18-decimal internal precision. Analyze both individual conversions and round trips.
-
-## 8. Economic Model
+## 7. Economic Model
 
 Analyze incentives and attacker profitability, not only code correctness. Consider limited capital, large capital, flash liquidity, multiple accounts, high transaction counts, favorable timing, MEV, arbitrary contracts, and cross-protocol composition.
 
@@ -159,7 +144,7 @@ Look for risk-free or circular arbitrage, low-cost manipulation, reward loops, r
 
 For each candidate, estimate attacker capital, attack cost, recoverable principal, protocol/user loss, and net profit. Separate profitable extraction from griefing that causes disproportionate damage without direct profit.
 
-## 9. Oracles
+## 8. Oracles
 
 Map every Chainlink feed, TWAP, DEX spot price, custom/signed/off-chain oracle, LP price, share price, fallback, and derived price to the calculations it controls.
 
@@ -167,7 +152,7 @@ Check freshness, heartbeat, round completeness, sign/zero handling, decimals, se
 
 Treat a DEX spot price as manipulable unless the protocol proves otherwise. Analyze flash swaps, large trades, low liquidity, donation, LP manipulation, and same-transaction read/write effects. Trace impact into collateral, borrow limits, liquidation, mint/redeem amounts, shares, and rewards.
 
-## 10. External Protocol Integrations
+## 9. External Protocol Integrations
 
 Treat each external protocol and token call as a trust boundary. Read the installed interface and implementation assumptions.
 
@@ -182,7 +167,7 @@ For each dependency answer:
 - whether callbacks can observe or reenter intermediate state;
 - whether user funds can still exit during dependency failure.
 
-## 11. Access Control
+## 10. Access Control
 
 Inventory every externally reachable function that changes critical state, especially setters, updates, upgrades, withdrawals, rescues, mint/burn, pause/unpause, and initialization.
 
@@ -190,7 +175,7 @@ Check `onlyOwner`, `onlyRole`, role admins, custom modifiers, `msg.sender`, `tx.
 
 Validate who can grant, revoke, renounce, transfer, or recover authority and whether two-step or delayed transitions can be bypassed or permanently blocked.
 
-## 12. Upgradeability
+## 11. Upgradeability
 
 For Transparent, UUPS, Beacon, Diamond, and custom delegatecall proxies, inspect:
 
@@ -204,17 +189,32 @@ For Transparent, UUPS, Beacon, Diamond, and custom delegatecall proxies, inspect
 
 Resolve the actual proxy pattern and installed library source. A constructor deployment cannot be assumed equivalent to an initialized proxy deployment.
 
-## 13. Signature Security
+## 12. Signature Security
 
 For EIP-712, permits, authorizations, meta-transactions, and off-chain orders, verify that the signed digest binds every security-relevant parameter: signer, action, amount/token/position, recipient, caller when required, nonce, deadline, chain ID, verifying contract, and domain/version.
 
 Check nonce uniqueness and consumption timing, cancellation, expiration, signature malleability, contract signers when supported, replay across chains/contracts/actions, domain separator changes, and partial-fill semantics.
 
-## 14. Reentrancy and Callbacks
+## 13. Reentrancy and Callbacks
 
 Analyze single-function, cross-function, cross-contract, and read-only reentrancy. Trace every external call made while state or accounting is intermediate, including token hooks, ERC-721/1155 receivers, DEX/flash callbacks, fallback/receive, and arbitrary user targets.
 
 `nonReentrant` on one function is not proof of safety. Determine whether a callback can enter a different function, another protocol component, a view used by an external protocol, or a privileged callback surface before invariants are restored.
+
+## 14. Precision and Rounding
+
+Review every division, multiplication, percentage, price/share conversion, decimal conversion, interest, fee, and reward formula.
+
+Determine:
+
+- whether multiplication should precede division;
+- the units and decimals at every boundary;
+- who benefits from rounding down/up;
+- whether splitting or repeating operations accumulates profit;
+- whether dust can become trapped, stolen, or weaponized;
+- behavior at zero, one wei, minimum valid input, boundary ±1, large values, and maximum supported values.
+
+Use concrete dimensional analysis for mixed decimals such as 6-decimal tokens, 8-decimal feeds, and 18-decimal internal precision. Analyze both individual conversions and round trips.
 
 ## 15. Flash Liquidity
 
@@ -271,7 +271,6 @@ A full protocol audit is complete only when each item is completed or explicitly
 - [ ] Business workflows, state machines, cross-function combinations, and failure paths are reviewed.
 - [ ] Key invariants are independently derived and mapped to state-changing operations.
 - [ ] Asset/share/debt/reward/fee/reserve accounting is reconciled.
-- [ ] Precision, decimals, rounding direction, dust, and boundary behavior are checked.
 - [ ] Economic incentives, attacker cost/profit, large capital, and cross-protocol composition are considered.
 - [ ] Oracle sources, manipulation, freshness, units, fallback, and downstream effects are reviewed.
 - [ ] External integrations, callbacks, failure behavior, pause, and upgrade assumptions are reviewed.
@@ -279,6 +278,7 @@ A full protocol audit is complete only when each item is completed or explicitly
 - [ ] Upgrade authorization, implementation initialization, migrations, and storage layout are reviewed where applicable.
 - [ ] Signature binding, nonce/deadline/domain, and replay protections are reviewed where applicable.
 - [ ] Single-, cross-function, cross-contract, and read-only reentrancy are considered.
+- [ ] Precision, decimals, rounding direction, dust, and boundary behavior are checked.
 - [ ] Flash liquidity and transaction-ordering/MEV effects are considered.
 - [ ] Supported token behaviors and compatibility assumptions are reviewed from source.
 - [ ] Low-level calls, assembly, delegatecall, storage, memory, and returndata handling are reviewed where present.
