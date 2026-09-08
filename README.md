@@ -20,7 +20,7 @@ doc-natspec
 
 当前仓库内置五个技能：
 
-- `develop-secure-contracts`：用于 Solidity 0.8.30+ 项目中集成和扩展 OpenZeppelin Contracts，强调先读取项目实际依赖与编译器配置，再基于已安装库做最小化集成
+- `develop-secure-contracts`：使用 OpenZeppelin 权限、重入保护、紧急暂停、ERC20、ERC721 和 UUPS 组件开发合约，强制入口校验、资金流顺序及合法调用流程
 - `foundry-test`：直接补齐高价值单元、集成、fuzz、invariant 与回归测试并运行 `forge test`，测试目的写在函数顶部，最终简短报告实际结果
 - `foundry-post-dev-optimization`：优化 gas 并进行有证据的语义 no-op 裁剪；未部署合约允许直接优化错误表示和存储排列，已部署或部署状态未知时保持兼容性
 - `solidity-foundry-security-review`：用于 Foundry Solidity 项目的定向或完整协议静态安全审查，仅输出发现和修复建议，强调协议建模、资产流、会计、经济攻击与代码可达路径
@@ -48,22 +48,17 @@ skills/
 
 ### `develop-secure-contracts`
 
-适用于：
+使用 OpenZeppelin 组件开发权限、重入保护、紧急暂停、ERC20、ERC721 和 UUPS 升级功能，按项目实际编译器与依赖版本集成。
 
-- Solidity `0.8.30+` 项目
-- ERC20、ERC721、ERC1155 等 OpenZeppelin token 组件集成
-- `Ownable`、`AccessControl`、`AccessManager` 等权限控制
-- `Pausable`、`ReentrancyGuard` 等安全组件
-- Governor、Timelock、Accounts 等 OpenZeppelin 组件
-- 在已有项目中基于实际安装的 OpenZeppelin 版本做集成，而不是凭记忆假设 API
+主要规则：
 
-主要原则：
-
-- 先确认实际 Solidity 编译器版本与配置
-- 先读项目已有代码和已安装 OpenZeppelin 源码
-- 优先使用库组件，不重复手写已有能力
-- CLI 生成结果只作为参考，项目实际安装的依赖源码才是最终依据
-- 对 Solidity 0.8.30+ 的简单校验，优先使用 `require(condition, CustomError())` 风格，同时尊重项目已有约定
+- 函数入口使用 `require` + custom error 校验适用入参前置条件，不强制固定编译器版本，但必须确认所需语法可编译
+- 资金流入：先校验，启用重入保护，转入并验证到账，最后更新业务状态
+- 资金流出：先校验并更新业务状态，再转出资产；失败整体回退
+- 对转账回调、实际到账量、原生资产和 ERC721 接收流程明确处理，不能用最终余额代替执行顺序验证
+- 严格执行权限、暂停和状态机规则，非预期调用流程立即报错，不吞异常或静默跳过
+- UUPS 完成代理原子初始化、实现初始化禁用、升级授权和已有存储兼容性验证
+- 实现后编译并运行相关行为、回调、失败回滚与非法流程测试
 
 ### `foundry-test`
 
