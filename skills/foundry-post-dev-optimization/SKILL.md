@@ -1,74 +1,74 @@
 ---
 name: foundry-post-dev-optimization
-description: "Use for post-development Solidity / Foundry gas optimization and proven semantic no-op pruning, including deployment-aware error and storage optimization."
+description: "用于 Solidity / Foundry 开发后的 Gas 优化与有证据的语义 no-op 裁剪，按部署状态处理错误类型和存储优化。"
 license: AGPL-3.0-only
 metadata:
   author: derick
 ---
 
-# Optimize Solidity Contracts After Development
+# 优化开发完成的 Solidity 合约
 
-## Follow This Skill
+## 遵守本技能
 
-Follow this skill's applicable scope, execution rules, verification requirements, and output contract. Do not silently skip required steps or substitute advice for authorized implementation. Explicit user instructions and higher-priority instructions take precedence. If a required step cannot be completed, state the specific limitation, continue independent work, and do not claim that step was completed.
+执行时遵守本技能适用的范围、执行规则、验证要求和输出约定。不静默跳过必需步骤，不用建议代替已授权的实现。用户明确指令及更高优先级指令优先。必需步骤无法完成时，说明具体限制、继续独立工作，不宣称该步骤已经完成。
 
-## Scope and Execution
+## 范围与执行
 
-Optimize gas and remove proven semantic no-ops in the requested contracts; otherwise use the configured source directory. For an optimization request, implement clear, supported improvements directly. An explicit review-only request stays read-only. This skill does not authorize new features, a security audit, or a broad refactor.
+对用户指定合约优化 Gas、删除已证明的语义 no-op；未指定时使用项目配置的源码目录。用户要求优化时，直接实现明确且有证据的改进；明确要求只评审时保持只读。本技能不授权新功能、安全审计或大规模重构。
 
-Read compiler/optimizer settings, target contracts, affected callers, tests, scripts, and exact installed dependencies. Trace overrides, data/control flow, external calls, and observable outputs before choosing changes. Inspect existing gas measurement workflows. Preserve unrelated changes; exclude vendored code, generated files, and unrelated formatting from edits. Inspect interfaces and deployment artifacts when needed to determine compatibility.
+阅读编译器/optimizer 配置、目标合约、受影响 caller、测试、脚本和实际安装的依赖。在选择修改前追踪 override、数据/控制流、外部调用和可观察输出，检查现有 Gas 测量流程。保留无关改动，不编辑依赖源码、生成文件或无关格式。需要判断兼容性时读取接口和部署资料。
 
-## Establish Deployment Status
+## 确定部署状态
 
-Use explicit user statements and project deployment records for the affected contracts and supported chains. No deployment file or address in the checkout is not proof that a contract has never been deployed. If status remains unknown, continue deployment-independent optimizations and ask only when a deployment-dependent change is otherwise ready.
+以用户明确说明、受影响合约及支持链的部署记录为依据。当前 checkout 没有部署文件或地址，不足以证明从未部署。状态仍未知时，继续不依赖部署状态的优化；仅在某项依赖部署状态的修改已具备其他执行条件时询问。
 
-| Status | Error and storage policy |
+| 状态 | 错误与存储规则 |
 | --- | --- |
-| Confirmed not deployed on-chain and not an upgrade to existing on-chain state | Prioritize gas: directly replace revert strings with suitable custom errors and pack/reorder storage when justified. These changes are within an optimization request and need no additional compatibility approval. |
-| Deployed, including a new implementation intended for an existing proxy | Preserve error selectors/revert contracts and storage compatibility. An unbroadcast implementation is not an undeployed system when it must read existing proxy state. |
-| Unknown | Preserve existing error and storage contracts until status is established; complete other proven optimizations. |
+| 确认尚未部署上链，且不用于升级已有链上状态 | 优先节省 Gas：有依据时直接将 revert string 替换为合适的 custom error，进行 storage packing/变量重排。这些属于优化请求范围，无需另行确认兼容性变更。 |
+| 已部署，包括为已有代理准备的新实现 | 保持错误 selector/revert 契约及存储兼容性。新实现尚未广播，只要需读取已有代理状态，就不属于未部署系统。 |
+| 未知 | 在状态明确前保持错误和存储契约，完成其他已证明的优化。 |
 
-Before-deployment permission covers error representation and storage arrangement, not arbitrary business, permission, asset-flow, function-signature, or event changes. Keep input domains and failure conditions intact. Changing variable widths requires proof that every supported value fits, including intermediate calculations and future configurations; do not introduce truncation or new overflow behavior.
+部署前许可覆盖错误表示和存储排列，不包含任意业务、权限、资产流、函数签名或 event 变更。保持输入范围和失败条件。缩窄变量类型必须证明所有支持值均可容纳，包括中间计算和未来配置；不得引入截断或新的 overflow 行为。
 
-For pre-deployment changes, update affected error assertions, callers, interfaces, deployment/initialization scripts, and documentation. Regenerate affected ABI/layout artifacts through the project's normal process. Inspect inheritance, namespaced storage, assembly slot references, and any layout-sensitive tooling. Describe these as intentional pre-deployment gas changes, not semantic no-op deletions.
+部署前修改要同步受影响的错误断言、caller、接口、部署/初始化脚本和文档，通过项目正常流程重新生成受影响的 ABI/layout 产物。检查继承、namespaced storage、assembly slot 引用及依赖布局的工具。将这类改动说明为有意的部署前 Gas 优化，不宣称其属于语义 no-op 删除。
 
-## Select and Prove Changes
+## 选择并证明改动
 
-### Local, behavior-preserving changes
+### 局部、保持行为的改动
 
-Implement when caller/data/control-flow and side-effect evidence is complete:
+当 caller、数据/控制流及副作用证据完整时实现：
 
-- Safe `memory` to `calldata`, redundant conversions/calculations, or repeated storage reads/lengths. Cached values must remain valid across mutations, hooks, callbacks, and external calls.
-- Dead assignments, ignored private returns, unreachable private branches, and duplicate guards whose preconditions hold on every reachable path.
-- Pass-through temporaries or wrappers only when they add no useful domain meaning, authorization, invariant, side effect, diagnostic, or gas benefit.
-- Redundant helper storage-reference parameters when the helper already receives the canonical mapping key. Prove every caller passes `mapping[key]` for that same key and preserve aliasing, delete/reload, and reassignment behavior. Keep explicit references when callers need a pre-fetched slot or another mapping entry.
-- Reuse of an installed library component only after reading its actual source and establishing equivalent behavior. Import it; do not paste library source.
+- 安全的 `memory` 改 `calldata`、冗余转换/计算、重复 storage read/length 缓存。缓存值在状态修改、hook、callback 和外部调用之后仍须有效。
+- 死赋值、被忽略的 private 返回值、不可达 private 分支，以及所有可达路径均满足前置条件的重复 guard。
+- 仅在不提供业务含义、授权、不变量、副作用、诊断或 Gas 收益时，删除透传临时变量或 wrapper。
+- helper 已接收规范 mapping key 时，删除冗余 storage-reference 参数。证明每个 caller 都传入同一 key 的 `mapping[key]`，保持 aliasing、delete/reload 和 reassignment 行为。caller 需要预先获取的 slot 或其他 mapping 项时保留显式引用。
+- 读取实际安装库源码并证明行为等价后，复用库组件。通过 import 使用，不粘贴库源码。
 
-Tests alone do not prove redundancy. State the code invariant supporting each non-trivial deletion.
+仅测试通过不能证明冗余；每个非平凡删除都要有代码不变量支撑。
 
-### Changes requiring stronger evidence
+### 需要更强证据的改动
 
-- Apply custom errors and storage packing/reordering under the deployment table above.
-- Use `unchecked` only after proving all reachable arithmetic ranges.
-- Optimize loops, merge branches, or alter dependency hooks only after preserving evaluation order, supported inputs, external-call ordering, side effects, and relevant inheritance/initializer requirements.
-- Retain the two-pass count-and-fill array pattern when replacing it would require manual memory-array length truncation. Do not make such truncation a default optimization; classify assembly techniques under the next section.
+- Custom error 和 storage packing/变量重排按上方部署状态表执行。
+- 只有证明所有可达算术范围后才能使用 `unchecked`。
+- 优化 loop、合并分支或修改依赖 hook 前，保持求值顺序、支持输入、外部调用顺序、副作用以及相关继承/initializer 要求。
+- 若替代方案需要手动截断 memory array length，保留两轮 count-and-fill 模式。不把这种截断作为默认优化；assembly 技巧归入下一节。
 
-### Recommendations unless separately authorized
+### 单独授权前仅作为建议
 
-Assembly, function/event ABI redesign, deployed-system compatibility changes, and broad multi-contract rewrites require an explicit broader request and strong evidence. Do not remove untrusted-input validation, authorization, fund-transfer checks, oracle assumptions, callback/reentrancy protection, or supported-version safeguards without proving the same guarantee remains enforced on every reachable path.
+Assembly、函数/event ABI 重设计、已部署系统的兼容性变更及大规模多合约重写，需要用户明确扩大请求范围且证据充分。删除不可信输入校验、授权、资金转移检查、oracle 假设、callback/reentrancy 防护或支持版本保护前，必须证明所有可达路径仍执行同等保证。
 
-For an unclear candidate, preserve that code, record the missing evidence, and continue independent candidates. Do not stop the entire pass or repeat an already-resolved approval question.
+某个候选项不明确时，保留该代码、记录缺失证据并继续独立候选项，不停止整个优化，也不重复询问已解决的授权问题。
 
-## Verification
+## 验证
 
-1. Establish a comparable baseline before claiming measured gas savings: same compiler, optimizer, EVM target, fixtures, inputs, and initial state. Prefer existing benchmark, snapshot, or gas-report workflows. Separate deployment gas from runtime gas and identify affected operations.
-2. After edits, run focused tests for changed behavior and touched-file `forge fmt --check`. Run `forge build` when compilation/artifacts are not already covered or the project requires it.
-3. For shared helpers, core accounting, public behavior, storage changes, or inheritance changes, test all affected suites; use full `forge test` when dependencies are broad or cannot be bounded reliably. A repository-wide pass or explicit full-suite request requires full verification. Local independent changes do not automatically require unrelated suites.
-4. For any authorized deployed-proxy upgrade, compare against the deployed version's layout artifacts or use the project's upgrade validator. Missing baseline layout means compatibility is unverified; passing unit tests is insufficient.
-5. Compare gas after the change. Without an actual before/after measurement, report expected gas benefit or structural simplification. Do not claim measured savings from intuition or from a successful test alone.
+1. 宣称测得 Gas 节省前建立可比较基线：相同编译器、optimizer、EVM target、fixture、输入和初始状态。优先复用现有 benchmark、snapshot 或 gas report，区分部署 Gas 与运行 Gas，明确受影响操作。
+2. 编辑后运行相关行为的聚焦测试及修改文件的 `forge fmt --check`。已有检查未覆盖编译/产物，或项目要求时，运行 `forge build`。
+3. 共享 helper、核心会计、公共行为、存储或继承修改要覆盖所有受影响套件；依赖面广或无法可靠限定时运行完整 `forge test`。全项目优化或明确全量请求需要完整验证。局部独立改动不自动要求无关套件。
+4. 任何已授权的已部署代理升级，都要对照已部署版本的 layout 产物或使用项目升级验证器。缺少基线 layout 就是兼容性未验证，单元测试通过不足以证明。
+5. 修改后比较 Gas。没有实际前后测量时，只报告预期收益或结构简化，不凭直觉或测试通过宣称已测得节省。
 
-Honor required project checks and inspect the final diff. Once required checks pass, rerun or expand only for new changes, failures, or unresolved concerns. Distinguish regressions, baseline failures, and environment blockers; continue unaffected checks and report any incomplete validation.
+完成项目要求的检查并审阅最终 diff。必需检查通过后，仅因新增改动、失败或未解决疑点重复或扩大验证。区分回归、基线失败和环境阻塞，继续不受影响的检查并报告未完成验证。
 
-## Final Response
+## 最终回复
 
-Report the implemented improvements, concise proof for non-trivial pruning, deployment status relevant to compatibility changes, and verification/gas results. Mention deferred candidates only when material, with the missing evidence or reason. Omit empty categories and repeated inventories.
+说明已实现的改进、非平凡裁剪的简短证明、影响兼容性变更的部署状态，以及验证/Gas 结果。仅对重要的暂缓候选项说明缺失证据或原因，省略空分类与重复清单。

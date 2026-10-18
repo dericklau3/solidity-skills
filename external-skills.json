@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "skills": [
+    {
+      "name": "defi-amm-security",
+      "repository": "https://github.com/affaan-m/ECC",
+      "upstream_path": "skills/defi-amm-security",
+      "tracking_ref": "main",
+      "installed_commit": "b92f181b3b748d1abbc2afd94af6aa7d8c8fca29",
+      "installed_on": "2026-10-13",
+      "install_directory": "${CODEX_HOME:-~/.codex}/skills/defi-amm-security",
+      "installed_files_sha256": {
+        "SKILL.md": "06f662a81b1faebb9930118302d88d649dbc5bcbf7dfe87c3780ddc72f2d6516"
+      }
+    },
+    {
+      "name": "golang-patterns",
+      "repository": "https://github.com/affaan-m/ECC",
+      "upstream_path": "skills/golang-patterns",
+      "tracking_ref": "main",
+      "installed_commit": "b92f181b3b748d1abbc2afd94af6aa7d8c8fca29",
+      "installed_on": "2026-10-13",
+      "install_directory": "${CODEX_HOME:-~/.codex}/skills/golang-patterns",
+      "installed_files_sha256": {
+        "SKILL.md": "d643e354683167727cfeb76934855db988468cd15b3ca01db9a32db43902edf7"
+      }
+    },
+    {
+      "name": "react-patterns",
+      "repository": "https://github.com/affaan-m/ECC",
+      "upstream_path": "skills/react-patterns",
+      "tracking_ref": "main",
+      "installed_commit": "b92f181b3b748d1abbc2afd94af6aa7d8c8fca29",
+      "installed_on": "2026-10-13",
+      "install_directory": "${CODEX_HOME:-~/.codex}/skills/react-patterns",
+      "installed_files_sha256": {
+        "SKILL.md": "f3208d44a5d553038c42e046cec4dc16e4a3d90a9dbf931f883a2e21919a64a9"
+      }
+    }
+  ]
+}

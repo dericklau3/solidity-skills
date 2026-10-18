@@ -26,6 +26,10 @@ doc-natspec
 - `solidity-foundry-security-review`：用于 Foundry Solidity 项目的定向或完整协议静态安全审查，仅输出发现和修复建议，强调协议建模、资产流、会计、经济攻击与代码可达路径
 - `doc-natspec`：用于开发完成后补齐和修复 NatSpec，支持项目自有接口、继承文档与 `@inheritdoc`，并用 `forge doc` 做最终验证
 
+## 外部技能来源记录
+
+另外安装了来自 [ECC](https://github.com/affaan-m/ECC) 的 `defi-amm-security`、`golang-patterns` 和 `react-patterns`。来源路径、已安装版本及后续 Codex 更新流程见 [EXTERNAL_SKILLS.md](EXTERNAL_SKILLS.md)，机器可读清单见 [external-skills.json](external-skills.json)。这些外部技能不计入本仓库的五个自有技能。
+
 ## 当前内容
 
 ```text
@@ -144,7 +148,7 @@ skills/
 ## 设计原则
 
 - **遵守技能**：执行适用的范围、步骤、验证和输出要求，不用建议代替已授权实现；用户明确指令及更高优先级指令优先，受阻步骤如实报告并继续独立工作
-- **双语一致**：`skills/` 与 `cn_skills/` 保持相同执行规则，修改时同步两种语言；安装时选择其中一种版本
+- **中文维护**：`skills/` 统一维护中文说明与参考文档；目录名及 `name` 保留英文标识（如 `develop-secure-contracts`），代码、命令与 API 名称保持原样
 - **先读项目**：优先阅读 `README.md`、`foundry.toml`、目标合约、测试、脚本和实际安装的依赖
 - **基于代码**：所有结论尽量落到具体实现，不用记忆中的库 API 代替项目事实
 - **职责分离**：测试、优化、安全审查和 NatSpec 各自保持明确边界

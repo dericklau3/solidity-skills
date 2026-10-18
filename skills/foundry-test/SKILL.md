@@ -1,69 +1,69 @@
 ---
 name: foundry-test
-description: "Use when adding or strengthening Solidity / Foundry tests, including unit, fuzz, invariant, integration, and regression tests."
+description: "用于添加或强化 Solidity / Foundry 测试，包括 Unit、Fuzz、Invariant、集成和回归测试。"
 license: AGPL-3.0-only
 metadata:
   author: derick
 ---
 
-# Write and Verify Foundry Tests
+# 编写并验证 Foundry 测试
 
-## Follow This Skill
+## 遵守本技能
 
-Follow this skill's applicable scope, execution rules, verification requirements, and output contract. Do not silently skip required steps or substitute advice for authorized implementation. Explicit user instructions and higher-priority instructions take precedence. If a required step cannot be completed, state the specific limitation, continue independent work, and do not claim that step was completed.
+执行时遵守本技能适用的范围、执行规则、验证要求和输出约定。不静默跳过必需步骤，不用建议代替已授权的实现。用户明确指令及更高优先级指令优先。必需步骤无法完成时，说明具体限制、继续独立工作，不宣称该步骤已经完成。
 
-## Execution Scope
+## 执行范围
 
-Invoking this skill, or requesting a test review or improvement, means identify gaps, write the relevant tests, and run `forge test`. Complete that work directly; do not stop at findings, recommendations, or a proposed test plan. An explicit instruction to explain only, run existing tests only, or remain read-only overrides this default.
+调用本技能，或要求检查、改进测试，默认意味着识别缺口、直接补好相关测试并运行 `forge test`。完成实际工作，不停留在发现、建议或测试计划。用户明确要求仅解释、仅运行现有测试或保持只读时，遵循用户指定的范围。
 
-Use the user's named files or behavior as the scope. Otherwise use the project's configured source and test directories. Preserve unrelated changes and existing test organization. Changes to production behavior require a fix to be within the user's authorized scope; a request for tests alone does not authorize protocol changes.
+用户指定文件或行为时按其范围执行，否则使用项目配置的源码和测试目录。保留无关改动与现有测试组织方式。只有用户授权的工作包含修复时，才可修改生产行为；单纯补测试不代表允许改变协议。
 
-If one expected behavior cannot be established, leave that assertion unresolved and continue independent tests. Ask only for information that materially determines correctness and cannot be obtained from the project. Reuse authorization already given.
+某项预期行为无法确定时，暂留该断言并继续独立测试。只有无法从项目获取、且实质影响正确性的信息才需要询问；沿用用户已经给出的授权。
 
-## Discover and Implement
+## 发现并实现
 
-1. Read `foundry.toml`, relevant contracts, existing tests, fixtures, and mocks. Inspect README, setup/deployment scripts, and exact installed dependencies when they determine behavior. Resolve custom paths and remappings instead of assuming `src/`, `test/`, or a remembered library API.
-2. Derive expected behavior from entrypoints, assets, roles, accounting units, permissions, and state transitions. Prioritize fund safety, accounting/solvency, permissions, core state transitions, arithmetic/rounding, and boundaries. Tests are evidence of intent, not the specification by themselves.
-3. Choose the lightest layer that proves each missing guarantee using the table below. Reuse local naming, fixtures, helpers, and assertions. Do not replace the suite or copy dependency tests wholesale.
-4. Exercise realistic setup and public entrypoints for claimed user flows. Mocks and shortcuts are appropriate only when they do not bypass the behavior under test. Cover required hooks, initializer ordering, callbacks, and upgrade integration when relevant. Pin fork blocks when possible and keep environmental assumptions beside assertions.
-5. Write tests, run the relevant commands, diagnose failures, and finish the authorized work. Do not generate separate `test/docs` files.
+1. 阅读 `foundry.toml`、相关合约、现有测试、fixture 和 mock。README、初始化/部署脚本、实际安装依赖影响行为时再读取它们。解析自定义目录和 remapping，不假定一定使用 `src/`、`test/` 或记忆中的库 API。
+2. 从入口、资产、角色、会计单位、权限和状态转换推导预期行为。优先覆盖资金安全、会计/偿付能力、权限、核心状态转换、数学/取整和边界。现有测试仅是意图证据，不能单独充当业务规范。
+3. 按下表选择能够证明缺失保证的最轻测试层。复用项目命名、fixture、helper 和断言风格，不替换整套测试，也不整批复制依赖库测试。
+4. 声称覆盖真实用户流程时，使用真实初始化路径和 public 入口。只有不会绕过被测行为时才使用 mock 或 shortcut。按需覆盖必需 hook、initializer 顺序、callback 和升级集成。Fork 尽量固定区块，环境假设写在相关断言旁。
+5. 编写测试、运行相关命令、诊断失败并完成已授权工作。不生成独立的 `test/docs` 文件。
 
-| Layer | Use it to prove |
+| 测试层 | 要证明的内容 |
 | --- | --- |
-| Unit | A specific operation's result, state, asset movement, events, boundary, revert, or permission check. |
-| Integration / realistic flow | Interacting contracts, deployment setup, or a sequence reached through actual public entrypoints. |
-| Fuzz | A property over a meaningful parameter domain, such as conservation, monotonicity, rounding bounds, or invalid-input rejection. |
-| Stateful invariant | A protocol promise across diverse sequences of user/operator actions. |
+| Unit | 单次操作的结果、状态、资产流、event、边界、revert 或权限。 |
+| 集成 / 真实流程 | 多合约交互、部署配置，或从实际 public 入口到达的操作序列。 |
+| Fuzz | 有意义参数范围内的属性，例如守恒、单调性、取整上限或非法输入拒绝。 |
+| Stateful invariant | 多样化用户/操作员动作序列中必须保持的协议承诺。 |
 
-Avoid mechanical coverage expansion. Derive invariants from the current protocol and establish important single-operation behavior before adding stateful exploration.
+避免机械追求覆盖率。Invariant 必须从当前协议推导；增加状态序列探索前，先覆盖重要的单次操作行为。
 
-## Test Quality
+## 测试质量
 
-Place one or two purpose-comment lines immediately after the opening brace of every new or materially changed `test...()` or invariant function. State the behavior or failure prevented; for fuzz tests include the property and input domain, and for invariants the promise across call sequences.
+每个新增或实质修改的 `test...()` 或 invariant 函数，在左花括号后立即用一两行注释说明目的。写清行为或防止的失败；Fuzz 说明属性与输入范围，Invariant 说明跨调用序列的承诺。
 
-- Assert meaningful outputs: balances, shares/debt/rewards, fees, events, error selectors, permissions, and unrelated users' state as applicable. Use approximate assertions only with a justified rounding, conversion, timing, or external-math tolerance.
-- For regressions, construct the minimal state that activates the failed condition without accidentally enabling another successful path. Check critical boundaries and repeat/reordered operations where relevant.
-- When the defective version is available, run the regression against it and confirm failure due to the original bug, not compilation, setup, or environment errors; then run the same behavioral assertion against the fixed version and confirm it passes. Keep the comparison isolated from unrelated work. If the defective version or comparison environment is unavailable, state that pre-fix failure was not verified. A passing test on the fixed version alone does not establish that it detects the original bug. If implementing the fix is outside the authorized scope, preserve and report the valid failing regression instead of changing production code.
-- For fuzz inputs, prefer `bound()` for continuous ranges and narrow `vm.assume()` for constraints not conveniently represented by bounds. Include edge values; never filter out a counterexample merely to pass.
-- For stateful invariants, derive accounting, solvency, conservation, supply, permission, state-machine, and economic properties only where the business rules promise them. Model fees, losses, mint/burn, and permitted donations explicitly.
-- Use realistic handlers, multiple actors where relevant, `targetContract(address(handler))`, and selective `targetSelector()` when needed. Keep actions diverse and meaningful instead of mostly reverting. Use ghost variables for flows not recoverable from protocol state. Guards must not hide invalid protocol states.
-- Reduce a failing invariant sequence to a realistic reproducer. Determine whether a failure comes from the test assumption, production behavior, or environment. Preserve valid reproducers; never weaken assertions, widen tolerances, or alter production behavior merely to get green tests.
+- 按需断言有意义的结果：余额、份额/债务/奖励、费用、event、错误 selector、权限及其他用户状态。只有明确的取整、换算、时间或外部数学原因才能使用近似断言。
+- 回归测试构造能触发失败条件的最小状态，避免意外激活另一条成功路径。按需验证关键边界、重复操作和顺序变化。
+- 缺陷版本可获得时，在该版本运行回归测试，确认失败来自原始 bug，而非编译、初始化或环境错误；再用相同的行为断言验证修复版本通过。隔离前后对比，保留无关工作。缺陷版本或对比环境不可用时，明确说明未验证修复前失败；仅修复版本测试通过，不足以证明能够捕获原始 bug。若实现修复不在授权范围内，保留并报告有效的失败回归测试，不修改生产代码。
+- Fuzz 连续范围优先使用 `bound()`；难以用边界表达的约束才用精确的 `vm.assume()`。包含边界值，不为通过测试而过滤反例。
+- Stateful invariant 仅在业务承诺成立时推导会计、偿付能力、守恒、供给、权限、状态机和经济属性。明确建模费用、损失、mint/burn 与允许的 donation。
+- 使用真实 handler，按需建模多参与者，通过 `targetContract(address(handler))` 与必要的 `targetSelector()` 限定动作。让动作多样且有效，避免大多数调用只会 revert。协议状态无法还原的流量用 ghost variable 记录；handler guard 不得隐藏协议的非法状态。
+- 将失败 invariant 序列缩减为真实复现。区分测试假设错误、生产行为错误和环境问题。保留有效复现，不为变绿而削弱断言、扩大 tolerance 或修改生产行为。
 
-## Verification Scope
+## 验证范围
 
-Always execute tests for work performed under this skill; select the scope deliberately:
+本技能执行的工作必须运行测试，明确选择范围：
 
-| Change / request | Required execution |
+| 改动 / 请求 | 必需执行 |
 | --- | --- |
-| One isolated test or local behavior | Relevant `forge test --match-path <path>` or `forge test --match-test <name>`; add `-vvvv` when diagnosing a failure. |
-| Shared fixture/helper, core accounting, public behavior, or interacting contracts | Focused tests first, then every affected suite; use full `forge test` when dependencies are broad or cannot be bounded reliably. |
-| Repository-wide test strengthening or an explicit full-suite request | Full `forge test`, including applicable project-required profiles. |
-| Test comments only | Relevant test file; no extra fuzz/invariant tests or unrelated full-suite run. |
+| 单个独立测试或局部行为 | 相关 `forge test --match-path <path>` 或 `forge test --match-test <name>`；诊断失败时增加 `-vvvv`。 |
+| 共享 fixture/helper、核心会计、公共行为或多合约交互 | 先运行聚焦测试，再覆盖所有受影响套件；依赖面广或无法可靠限定时运行完整 `forge test`。 |
+| 全项目测试强化或明确要求全量 | 完整 `forge test`，包括项目要求且适用的 profile。 |
+| 仅测试注释改动 | 运行相关测试文件，不额外新增 Fuzz/Invariant 或运行无关全量测试。 |
 
-Run touched-file `forge fmt --check` and inspect the diff after edits. Honor project-required checks. Once required checks pass, broaden or repeat only for new changes, failures, or unresolved concerns. Reuse valid results for unchanged inputs/configuration.
+编辑后对修改文件运行 `forge fmt --check` 并检查 diff。完成项目要求的检查。必需检查通过后，仅因新增改动、失败或未解决疑点扩大或重复验证；输入和配置未变时复用已有有效结果。
 
-For missing RPC access, dependencies, or environment variables, continue available independent checks and state the exact blocked command. Distinguish new failures from baseline failures; a focused pass is not a green full suite.
+缺少 RPC、依赖或环境变量时，继续可运行的独立检查并说明具体受阻命令。区分新失败与基线失败；局部通过不等于全量通过。
 
-## Final Response
+## 最终回复
 
-Briefly state which tests were written and the actual verification result. Include a remaining blocker or valid failing reproducer only when it affects completion. Keep scenario explanations in test comments; do not output a separate findings report, recommendations list, or test plan.
+简短说明补了哪些测试及实际验证结果。仅在影响完成时说明剩余阻塞或有效的失败复现。场景解释保留在测试注释中，不另行输出发现报告、建议清单或测试计划。

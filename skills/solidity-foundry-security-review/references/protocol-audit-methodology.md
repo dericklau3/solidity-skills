@@ -1,304 +1,304 @@
-# Protocol Audit Methodology
+# 协议审计方法
 
-Read this file completely for a full protocol audit. For a targeted review, read the sections reachable from the selected scope and record which surfaces were not reviewed.
+完整协议审计必须完整阅读本文件。定向审查只读取所选范围可达的章节，并记录哪些攻击面未审查。
 
-This methodology is limited to read-only static analysis. Do not write PoCs, change project files, or perform local validation. Read existing tests as context only; deliver findings and written remediation recommendations.
+本方法仅用于只读静态分析。不编写 PoC、不修改项目文件、不进行本地验证。现有测试仅作为阅读上下文；交付发现和文字修复建议。
 
-## Ordered Audit Phases
+## 强制审计顺序
 
-Use this order so implementation-level patterns do not distract from protocol-level failures:
+按以下顺序执行，避免实现层漏洞模式干扰协议级风险分析：
 
-1. Protocol understanding and architecture
-2. Asset flow and custody
-3. Roles and trust model
-4. Business logic and state machines
-5. Invariants
-6. Accounting
-7. Economic model
-8. Oracles
-9. External integrations
-10. Access control
-11. Upgradeability
-12. Signature security
-13. Reentrancy and callbacks
-14. Precision and rounding
-15. Flash liquidity
-16. MEV and transaction ordering
-17. Token compatibility
-18. Low-level EVM and assembly
-19. Denial of service and griefing
-20. Operational and administrative security
-21. Candidate validation and findings
+1. 协议理解与架构
+2. 资产流与托管
+3. 角色与信任模型
+4. 业务逻辑与状态机
+5. Invariant
+6. 会计
+7. 经济模型
+8. Oracle
+9. 外部协议集成
+10. Access Control
+11. 可升级性
+12. 签名安全
+13. 重入与 Callback
+14. 精度与舍入
+15. 闪电流动性
+16. MEV 与交易排序
+17. Token 兼容性
+18. 底层 EVM 与 Assembly
+19. DoS 与 Griefing
+20. 运维与管理员安全
+21. 候选问题验证与 Findings
 
-Do not stop after finding a severe issue. Complete every applicable phase, or mark it blocked/non-applicable with a concrete reason.
+发现严重问题后不得停止。完成所有适用阶段；受阻或不适用的阶段必须给出具体理由。
 
-## Working Artifacts
+## 工作产物
 
-Use these artifacts as lightweight audit notes when the protocol is non-trivial. They are not required final-report headings, but the final answer should expose enough of them to make conclusions reviewable.
+当协议并非平凡合约时，用以下轻量产物作为审计笔记。它们不一定是最终报告标题，但最终回复应暴露足够内容，让结论可复核。
 
-- **Entrypoint inventory:** externally reachable function, caller assumptions, lifecycle step, value moved, critical state changed, external calls, and reachable privileged paths.
-- **Asset-flow table:** asset, source, custodian, accounting source of truth, conversion formula/unit, normal destination, emergency/privileged destination, and direct-transfer/donation behavior.
-- **Role matrix:** role, direct capability, indirect capability through shared helpers or role-admin powers, maximum impact, and intended trust assumption.
-- **Invariant map:** invariant, operations that can affect it, attacker-controlled variables, external dependencies, boundary values, and the source evidence and reasoning supporting it.
-- **External dependency map:** dependency, service/value relied on, who can influence outputs, revert/pause/upgrade/staleness behavior, callback surface, and user-exit behavior during failure.
-- **Candidate ledger:** suspected issue, broken rule, actor, prerequisites, path, impact, existing guards, evidence status, and final disposition as finding, unresolved risk, or rejected.
+- **入口清单**：外部可达函数、调用者假设、生命周期步骤、移动的价值、修改的关键状态、外部调用和可达特权路径。
+- **资产流表**：资产、来源、托管方、会计权威、转换公式/单位、正常去向、应急/特权去向，以及直接转账/Donation 行为。
+- **角色矩阵**：角色、直接能力、通过共享 Helper 或 Role Admin 产生的间接能力、最大影响和预期信任假设。
+- **Invariant 映射**：Invariant、可能影响它的操作、攻击者可控变量、外部依赖、边界值，以及支撑它的源码证据和分析。
+- **外部依赖映射**：依赖项、依赖的服务/价值、谁能影响输出、Revert/Pause/Upgrade/过期行为、Callback 表面，以及失败期间用户能否退出。
+- **候选问题台账**：疑似问题、被破坏规则、参与者、前置条件、路径、影响、现有 Guard、证据状态，以及最终归类为 Finding、未解决风险或已排除。
 
-Prefer these concrete traces over broad vulnerability checklists. A checklist item matters only when it can affect a protocol promise, invariant, asset flow, trust boundary, or liveness guarantee.
+优先使用这些具体轨迹，而不是泛化漏洞 Checklist。只有当某项会影响协议承诺、Invariant、资产流、信任边界或可用性保证时，它才是实质审计点。
 
-## 1. Protocol Understanding and Architecture
+## 1. 协议理解与架构
 
-Read documentation, production contracts, interfaces, libraries, tests, configuration, deployments, upgrades, and relevant installed dependencies. Produce a compact map containing:
+阅读文档、生产合约、接口、库、测试、配置、部署、升级流程和相关已安装依赖。建立紧凑模型：
 
-- protocol purpose and intended guarantees;
-- core contracts and their relationships;
-- externally reachable production entrypoints and their lifecycle phase;
-- user and privileged roles;
-- external protocols and off-chain actors;
-- critical assets and state;
-- primary user entrypoints;
-- the component that holds assets, controls accounting, decides prices, and can move value.
+- 协议目的和预期保证；
+- 核心合约及关系；
+- 外部可达的生产入口及其所属生命周期阶段；
+- 用户角色和特权角色；
+- 外部协议和链下参与者；
+- 关键资产与状态；
+- 主要用户入口；
+- 哪个组件持有资产、负责会计、决定价格并可转移价值。
 
-Do not begin findings analysis until the main lifecycle and control boundaries can be explained coherently.
+在能够连贯解释主要生命周期和控制边界前，不要开始 Finding 分析。
 
-## 2. Asset Flow and Custody
+## 2. 资产流与托管
 
-Trace every relevant native asset, ERC-20/721/1155, LP token, vault share, debt token, reward token, and synthetic asset.
+追踪所有相关原生资产、ERC-20/721/1155、LP Token、Vault Share、Debt Token、Reward Token 和合成资产。
 
-For each asset, determine:
+对每种资产确定：
 
-- its source and entrypoint;
-- every custodian and transfer boundary;
-- who can transfer, mint, burn, lock, approve, or rescue it;
-- the formula and unit used for each conversion;
-- every normal, emergency, privileged, and external destination;
-- whether internal accounting records the actual movement.
+- 来源和入口；
+- 每个托管方和转移边界；
+- 谁能 Transfer、Mint、Burn、Lock、Approve 或 Rescue；
+- 每次转换的公式和单位；
+- 所有正常、应急、特权和外部目的地；
+- 内部会计是否记录实际资产移动。
 
-Trace complete chains such as user → vault → strategy → external protocol → token transfer. Include deposit, mint, stake, swap, borrow, repay, liquidate, claim, redeem, withdraw, rescue, and emergency paths as applicable.
+追踪 user → vault → strategy → external protocol → token transfer 的完整路径。按适用情况覆盖 deposit、mint、stake、swap、borrow、repay、liquidate、claim、redeem、withdraw、rescue 和 emergency 路径。
 
-Look for trapped assets, excess withdrawals, cross-user allocation, unaccounted balances, double valuation, and failure paths that leave value or accounting in an intermediate state.
+寻找资产锁死、超额提现、跨用户错配、未记账余额、重复计价，以及导致资产或会计停留在中间状态的失败路径。
 
-## 3. Roles and Trust Model
+## 3. 角色与信任模型
 
-Inventory owner, admin, operator, manager, guardian, keeper, oracle, upgrader, pauser, minter, signer, multisig, governance, role admins, and indirect authorities.
+盘点 owner、admin、operator、manager、guardian、keeper、oracle、upgrader、pauser、minter、signer、multisig、governance、Role Admin 和间接权限。
 
-Build a matrix:
+建立矩阵：
 
-| Role | Direct and indirect capability | Maximum impact | Intended trust assumption |
+| Role | 直接与间接能力 | 最大影响 | 预期信任假设 |
 |---|---|---|---|
-| Example: upgrader | Replace implementation | Arbitrary protocol behavior | Timelocked multisig |
+| 例：upgrader | 替换实现 | 任意协议行为 | Timelock Multisig |
 
-Check excessive privilege, missing checks, escalation paths, shared internal functions reached by weaker roles, role-admin configuration, initialization, permission transfer, front-runnable ownership handoff, and dangerous combinations of individually limited roles.
+检查过大权限、缺失验证、权限升级路径、弱权限入口共享内部函数、Role Admin 配置、初始化、权限转移、可抢跑的 Ownership 移交，以及多个有限角色组合后的危险能力。
 
-Distinguish an explicitly trusted role's documented power from a vulnerability. It becomes a finding when implementation exceeds the trust model or violates a guarantee the role is supposed to preserve. Record concentrated trust even when it is accepted design risk.
+区分受信任角色的明确设计能力和漏洞。当实现超出信任模型，或破坏该角色本应维持的用户保证时，才构成 Finding。即使属于接受的设计，也要记录集中式信任风险。
 
-## 4. Business Logic and State Machines
+## 4. 业务逻辑与状态机
 
-Model full lifecycles rather than isolated functions. Analyze normal, reordered, repeated, skipped, interrupted, and cross-user sequences. Examples include:
+分析完整生命周期，不要孤立审查单个函数。分析正常、重排、重复、跳过、中断和跨用户序列，例如：
 
-- deposit → mint → transfer share → redeem;
-- deposit → borrow → price change → liquidate;
-- stake → claim → unstake → restake → claim;
-- pause → emergency action → unpause → normal exit.
+- deposit → mint → transfer share → redeem；
+- deposit → borrow → price change → liquidate；
+- stake → claim → unstake → restake → claim；
+- pause → emergency action → unpause → normal exit。
 
-Search for duplicate claims/withdrawals/accounting, state skips, prerequisite bypass, limit/cooldown/fee/pause/blacklist bypass, reused positions, repeated valuation, partial failure, and combinations of valid operations that produce an invalid result.
+寻找重复领取/提现/记账、状态跳跃、前置条件绕过、Limit/Cooldown/Fee/Pause/Blacklist 绕过、头寸重复使用、重复计价、部分失败，以及合法操作组合后的非法结果。
 
-For each transition, record caller, prerequisites, state read, state written, value moved, external calls, and terminal condition.
+对每个状态转换记录调用者、前置条件、读取状态、写入状态、移动价值、外部调用和终止条件。
 
-## 5. Invariants
+## 5. Invariant
 
-Derive invariants independently from documentation and code. Useful families include:
+从文档和代码独立推导 Invariant。常见类型：
 
-- users cannot withdraw more value than their entitlement;
-- assets and obligations are conserved except for explicit fees, yield, loss, mint, or burn;
-- internal accounting reconciles with the protocol's chosen source of truth;
-- debt, collateral, and solvency remain within protocol rules;
-- cumulative rewards do not exceed funded or scheduled rewards;
-- state transitions cannot skip required prerequisites;
-- privileged actions preserve documented user guarantees;
-- price inputs are fresh, dimensionally correct, and resistant to the assumed attacker.
+- 用户不能提取超过其权益的价值；
+- 除明确 Fee、Yield、Loss、Mint 或 Burn 外，资产和义务守恒；
+- 内部会计与协议选定的权威来源一致；
+- 债务、抵押品和偿付能力符合协议规则；
+- 累计奖励不超过资金或计划允许值；
+- 状态转换不能跳过必要前置条件；
+- 特权操作维持文档化用户保证；
+- 价格输入新鲜、量纲正确，并能抵抗假定攻击者。
 
-For each invariant, enumerate functions, callbacks, direct transfers, privileged actions, extreme values, and external state changes capable of affecting it. Connect every material finding to a violated invariant when possible.
+对每个 Invariant，枚举可能影响它的函数、Callback、直接转账、特权操作、极端值和外部状态变化。尽可能把每个实质 Finding 关联到被破坏的 Invariant。
 
-## 6. Accounting
+## 6. 会计
 
-Identify the authoritative variables for assets, shares, supply, principal, debt, borrow, interest, rewards, fees, and reserves. Trace every increment, decrement, reset, realization, and transfer.
+识别资产、份额、Supply、Principal、Debt、Borrow、Interest、Reward、Fee 和 Reserve 的权威变量。追踪每次增加、减少、清零、实现和转移。
 
-Compare actual balances with internal accounting only after determining which one is intended as the source of truth. Specifically inspect:
+先确定实际余额还是内部会计是权威来源，再比较两者。重点检查：
 
-- duplicate, missing, or incorrectly cleared entries;
-- state updates before/after external calls and failures;
-- transfers that do not synchronize ownership/accounting;
-- direct token transfers, forced native value, and donations;
-- interest/reward accumulation across time and user actions;
-- duplicated fees or debts that fail to increase/decrease;
-- share/asset conversion and first/last depositor behavior;
-- cross-user contamination and aggregate-vs-user reconciliation.
+- 重复、遗漏或错误清零；
+- 外部调用和失败前后的状态更新；
+- Transfer 后所有权/会计未同步；
+- 直接 Token 转账、强制原生资产和 Donation；
+- 时间和用户操作下的利息/奖励累计；
+- 重复 Fee，或 Debt 未正确增加/减少；
+- Share/Asset 转换，以及首个/最后用户行为；
+- 跨用户污染和总量/用户账目对账。
 
-An accounting difference is not automatically exploitable. Determine whether the attacker can create it, benefit from it, or use it to deny service.
+会计差异不自动等于漏洞。确认攻击者能否制造差异、从中获利或用它造成 DoS。
 
-## 7. Economic Model
+## 7. 经济模型
 
-Analyze incentives and attacker profitability, not only code correctness. Consider limited capital, large capital, flash liquidity, multiple accounts, high transaction counts, favorable timing, MEV, arbitrary contracts, and cross-protocol composition.
+分析激励和攻击者盈利能力，不限于代码正确性。考虑有限资本、大额资本、闪电流动性、多地址、高交易次数、有利时机、MEV、任意合约和跨协议组合。
 
-Look for risk-free or circular arbitrage, low-cost manipulation, reward loops, reverse incentives, large-user extraction from small users, leverage amplification, tokenomics that leak protocol value, and actions whose private reward exceeds their protocol cost.
+寻找无风险/循环套利、低成本操纵、奖励循环、反向激励、大用户提取小用户价值、杠杆放大、泄漏协议价值的 Tokenomics，以及私人收益超过协议成本的行为。
 
-For each candidate, estimate attacker capital, attack cost, recoverable principal, protocol/user loss, and net profit. Separate profitable extraction from griefing that causes disproportionate damage without direct profit.
+对候选问题估算攻击本金、攻击成本、可收回本金、协议/用户损失和净利润。区分盈利型提取与攻击者不直接获利但能造成不成比例损害的 Griefing。
 
-## 8. Oracles
+## 8. Oracle
 
-Map every Chainlink feed, TWAP, DEX spot price, custom/signed/off-chain oracle, LP price, share price, fallback, and derived price to the calculations it controls.
+将 Chainlink、TWAP、DEX Spot Price、自定义/签名/链下 Oracle、LP Price、Share Price、Fallback 和衍生价格映射到其控制的计算。
 
-Check freshness, heartbeat, round completeness, sign/zero handling, decimals, sequencer downtime, deviation bounds, update delay, pause/fallback behavior, permissions, source switching, circular dependencies, and unit consistency.
+检查新鲜度、Heartbeat、Round 完整性、正负/零值、Decimals、Sequencer Downtime、偏差限制、更新延迟、Pause/Fallback、权限、来源切换、循环依赖和单位一致性。
 
-Treat a DEX spot price as manipulable unless the protocol proves otherwise. Analyze flash swaps, large trades, low liquidity, donation, LP manipulation, and same-transaction read/write effects. Trace impact into collateral, borrow limits, liquidation, mint/redeem amounts, shares, and rewards.
+除非协议证明安全，否则把 DEX Spot Price 视为可操纵。分析 Flash Swap、大额交易、低流动性、Donation、LP 操纵和同交易读写影响。追踪到抵押品、借款额度、清算、Mint/Redeem、份额和奖励。
 
-## 9. External Protocol Integrations
+## 9. 外部协议集成
 
-Treat each external protocol and token call as a trust boundary. Read the installed interface and implementation assumptions.
+把每个外部协议和 Token 调用视为信任边界。阅读实际安装的接口和实现假设。
 
-Check return values, revert behavior, callbacks, slippage, deadline, allowance lifecycle, pricing, decimals, pause/upgrade behavior, mutable external state, partial completion, and unexpected return data.
+检查返回值、Revert、Callback、Slippage、Deadline、Allowance 生命周期、价格、Decimals、Pause/Upgrade、可变外部状态、部分完成和异常返回数据。
 
-For each dependency answer:
+对每个依赖回答：
 
-- what service or value does the protocol depend on;
-- which outputs affect funds or accounting;
-- who can influence those outputs;
-- what happens on revert, pause, stale state, changed behavior, or upgrade;
-- whether callbacks can observe or reenter intermediate state;
-- whether user funds can still exit during dependency failure.
+- 协议依赖它提供什么服务或价值；
+- 哪些输出影响资金或会计；
+- 谁能影响这些输出；
+- Revert、Pause、状态过期、行为变化或升级时会怎样；
+- Callback 能否观察或重入中间状态；
+- 依赖失败时用户资金能否退出。
 
 ## 10. Access Control
 
-Inventory every externally reachable function that changes critical state, especially setters, updates, upgrades, withdrawals, rescues, mint/burn, pause/unpause, and initialization.
+盘点所有改变关键状态的外部可达函数，尤其是 Setter、Update、Upgrade、Withdraw、Rescue、Mint/Burn、Pause/Unpause 和 Initialize。
 
-Check `onlyOwner`, `onlyRole`, role admins, custom modifiers, `msg.sender`, `tx.origin`, proxy context, callbacks, meta-transactions, internal helpers shared across privilege levels, and indirect calls that bypass the intended boundary.
+检查 `onlyOwner`、`onlyRole`、Role Admin、自定义 Modifier、`msg.sender`、`tx.origin`、代理上下文、Callback、Meta-Transaction、不同权限入口共享的内部 Helper，以及绕过预期边界的间接调用。
 
-Validate who can grant, revoke, renounce, transfer, or recover authority and whether two-step or delayed transitions can be bypassed or permanently blocked.
+验证谁能 Grant、Revoke、Renounce、Transfer 或恢复权限，以及两步/延迟转换能否绕过或永久阻塞。
 
-## 11. Upgradeability
+## 11. 可升级性
 
-For Transparent, UUPS, Beacon, Diamond, and custom delegatecall proxies, inspect:
+对 Transparent、UUPS、Beacon、Diamond 和自定义 Delegatecall Proxy，检查：
 
-- initializer/reinitializer reachability and versioning;
-- implementation initialization and constructor assumptions;
-- upgrade authorization, proxy admin, and target validation;
-- delegatecall context and arbitrary execution paths;
-- storage layout, collisions, gaps, namespaced slots, inheritance order, and type changes;
-- migration logic and invariants across versions;
-- whether upgrades alter accounting meaning or privilege boundaries.
+- Initializer/Reinitializer 可达性和版本；
+- Implementation 初始化和 Constructor 假设；
+- 升级授权、Proxy Admin 和目标验证；
+- Delegatecall 上下文和任意执行路径；
+- Storage Layout、Collision、Gap、Namespaced Slot、继承顺序和类型变更；
+- 迁移逻辑和跨版本 Invariant；
+- 升级是否改变会计含义或权限边界。
 
-Resolve the actual proxy pattern and installed library source. A constructor deployment cannot be assumed equivalent to an initialized proxy deployment.
+解析实际代理模式和依赖源码。不要假设 Constructor 部署与 Proxy 初始化等价。
 
-## 12. Signature Security
+## 12. 签名安全
 
-For EIP-712, permits, authorizations, meta-transactions, and off-chain orders, verify that the signed digest binds every security-relevant parameter: signer, action, amount/token/position, recipient, caller when required, nonce, deadline, chain ID, verifying contract, and domain/version.
+对 EIP-712、Permit、Authorization、Meta-Transaction 和链下订单，验证签名摘要绑定所有安全关键参数：Signer、Action、Amount/Token/Position、Receiver、必要时的 Caller、Nonce、Deadline、Chain ID、Verifying Contract 和 Domain/Version。
 
-Check nonce uniqueness and consumption timing, cancellation, expiration, signature malleability, contract signers when supported, replay across chains/contracts/actions, domain separator changes, and partial-fill semantics.
+检查 Nonce 唯一性与消耗时机、取消、过期、签名可塑性、合约签名者、跨链/跨合约/跨操作 Replay、Domain Separator 变化和部分成交语义。
 
-## 13. Reentrancy and Callbacks
+## 13. 重入与 Callback
 
-Analyze single-function, cross-function, cross-contract, and read-only reentrancy. Trace every external call made while state or accounting is intermediate, including token hooks, ERC-721/1155 receivers, DEX/flash callbacks, fallback/receive, and arbitrary user targets.
+分析单函数、跨函数、跨合约和 Read-only Reentrancy。追踪状态或会计处于中间态时的每个外部调用，包括 Token Hook、ERC-721/1155 Receiver、DEX/Flash Callback、Fallback/Receive 和任意用户目标。
 
-`nonReentrant` on one function is not proof of safety. Determine whether a callback can enter a different function, another protocol component, a view used by an external protocol, or a privileged callback surface before invariants are restored.
+单个函数有 `nonReentrant` 不代表安全。确认 Callback 能否在 Invariant 恢复前进入其他函数、其他协议组件、被外部协议读取的 View 或特权 Callback 表面。
 
-## 14. Precision and Rounding
+## 14. 精度与舍入
 
-Review every division, multiplication, percentage, price/share conversion, decimal conversion, interest, fee, and reward formula.
+审查所有除法、乘法、百分比、价格/份额转换、Decimals 转换、利息、费用和奖励公式。
 
-Determine:
+确定：
 
-- whether multiplication should precede division;
-- the units and decimals at every boundary;
-- who benefits from rounding down/up;
-- whether splitting or repeating operations accumulates profit;
-- whether dust can become trapped, stolen, or weaponized;
-- behavior at zero, one wei, minimum valid input, boundary ±1, large values, and maximum supported values.
+- 是否应先乘后除；
+- 每个边界的单位和 Decimals；
+- Round Down/Up 对谁有利；
+- 拆分或重复操作能否累计利润；
+- Dust 能否锁死、被盗或用于攻击；
+- 0、1 Wei、最小有效值、边界 ±1、大值和最大支持值的行为。
 
-Use concrete dimensional analysis for mixed decimals such as 6-decimal tokens, 8-decimal feeds, and 18-decimal internal precision. Analyze both individual conversions and round trips.
+对 6 位 Token、8 位 Feed、18 位内部精度等混合 Decimals 做明确量纲分析，同时分析单向转换和往返转换。
 
-## 15. Flash Liquidity
+## 15. 闪电流动性
 
-Treat flash liquidity as the ability to use very large capital atomically, not as a vulnerability by itself. Re-evaluate oracle inputs, voting, rewards, share prices, liquidity, collateral, liquidation, accounting, and token price under a large temporary balance.
+把闪电流动性视为攻击者能原子使用巨额资本，而不是漏洞本身。用临时大余额重新检查 Oracle、Voting、Reward、Share Price、Liquidity、Collateral、Liquidation、Accounting 和 Token Price。
 
-Analyze sequences of borrow → manipulate → trigger protocol action → unwind → repay. A realistic same-transaction exploit should not be dismissed or downgraded merely because flash liquidity is used.
+分析 borrow → manipulate → trigger protocol action → unwind → repay。同交易现实攻击不能仅因为使用闪电流动性而被忽略或降级。
 
-## 16. MEV and Transaction Ordering
+## 16. MEV 与交易排序
 
-Analyze front-running, back-running, sandwiching, and arbitrary ordering around swaps, price updates, liquidation, reward claims, auctions, deposits, withdrawals, and mints.
+分析 Swap、价格更新、清算、奖励领取、拍卖、Deposit、Withdraw 和 Mint 周围的 Front-run、Back-run、Sandwich 和任意排序。
 
-Check slippage bounds, deadlines, stale quotes, user-controlled minimums, commit/reveal when appropriate, and whether an observer of a pending transaction can profit by executing before or after it. Distinguish unavoidable market MEV from protocol-created value loss or guarantee violations.
+检查 Slippage、Deadline、过期 Quote、用户控制的最小输出、适用时的 Commit/Reveal，以及攻击者看到 Pending Transaction 后能否在前后执行获利。区分不可避免的市场 MEV 与协议制造的价值损失或保证破坏。
 
-## 17. Token Compatibility
+## 17. Token 兼容性
 
-Do not assume `amount sent == amount received` or uniform ERC-20 behavior. As applicable, consider fee-on-transfer, rebasing, ERC-777/hooks, no-return/false-return tokens, blacklisting, pausing, upgrades, callbacks, unusual decimals, transfer restrictions, and tokens that revert on zero or special approvals.
+不要假设 `amount sent == amount received` 或所有 ERC-20 行为一致。按适用情况考虑 Fee-on-transfer、Rebasing、ERC-777/Hook、无返回值/返回 False、Blacklist、Pause、Upgrade、Callback、异常 Decimals、转账限制，以及对零值或特定 Approve 方式 Revert 的 Token。
 
-Check safe transfer wrappers, allowance races/lifecycle, balance-before/after measurement, share accounting under rebases, denial of exit due to blacklist/pause, and whether permissionless token listing exposes unsupported behavior. Only require compatibility promised by the protocol.
+检查 Safe Transfer Wrapper、Allowance 生命周期、Balance Before/After、Rebase 下的 Share Accounting、Blacklist/Pause 导致的退出 DoS，以及无权限 Token Listing 是否暴露不支持行为。只要求协议承诺支持的兼容性。
 
-## 18. Low-Level EVM and Assembly
+## 18. 底层 EVM 与 Assembly
 
-Raise scrutiny for assembly, `call`, `delegatecall`, `staticcall`, CREATE/CREATE2, raw storage, manual ABI encoding, and returndata parsing.
+提高对 Assembly、`call`、`delegatecall`、`staticcall`、CREATE/CREATE2、原始 Storage、手工 ABI 编码和 Returndata 解析的审查强度。
 
-Check calldata offsets, free-memory pointer, memory overwrite, returndata length/copy, dirty bits, selectors, value forwarding, revert bubbling, storage slots, address masking, and compiler assumptions.
+检查 Calldata Offset、Free Memory Pointer、Memory 覆盖、Returndata Length/Copy、Dirty Bits、Selector、Value 转发、Revert 传播、Storage Slot、Address Mask 和编译器假设。
 
-For delegatecall, identify whose code executes, whose storage is used, the effective sender/value, whether the target is controllable, and whether storage layouts match. Prove semantic equivalence rather than assuming assembly is a gas-optimized version of high-level Solidity.
+对 Delegatecall，确认执行谁的代码、使用谁的 Storage、有效 Sender/Value、目标是否可控，以及 Storage Layout 是否匹配。证明语义等价，不要默认 Assembly 只是高级 Solidity 的 Gas 优化版本。
 
-## 19. Denial of Service and Griefing
+## 19. DoS 与 Griefing
 
-Inspect unbounded loops, attacker-controlled arrays/storage growth, malicious reverts, gas exhaustion, dust positions, forced value, blocked recipients, callbacks, global locks, and external dependency failure.
+检查无界循环、攻击者控制的数组/Storage 增长、恶意 Revert、Gas Exhaustion、Dust Position、强制转入、Blocked Recipient、Callback、全局锁和外部依赖失败。
 
-Assess attack cost from available code and evidence, repeatability, affected scope, duration, and recovery path. A low-cost attack that blocks the whole protocol may be material even without attacker profit. Distinguish single-user self-DoS from protocol-wide liveness loss.
+根据可用代码和证据评估攻击成本、可重复性、影响范围、持续时间和恢复路径。即使攻击者不直接获利，低成本阻塞整个协议也可能是实质性问题。区分单用户自我 DoS 与协议级可用性损失。
 
-## 20. Operational and Administrative Security
+## 20. 运维与管理员安全
 
-Evaluate pause, emergency withdrawal, oracle fallback, rate/withdraw limits, multisig, timelock, monitoring assumptions, upgrade delay, and recovery.
+评估 Pause、Emergency Withdraw、Oracle Fallback、Rate/Withdraw Limit、Multisig、Timelock、Monitoring 假设、Upgrade Delay 和恢复流程。
 
-Model compromised admin keys, stale oracles, paused/upgraded external protocols, missing DEX liquidity, token blacklist/pause, and multisig compromise. Verify which actions remain available while paused, whether users can exit, whether emergency paths preserve accounting, whether timelocks can be bypassed, and whether guardians/rate limits materially constrain loss.
+分析 Admin Key 泄露、Oracle 过期、外部协议 Pause/Upgrade、DEX 无流动性、Token Blacklist/Pause 和 Multisig 失陷。验证 Pause 后哪些操作仍可用、用户能否退出、Emergency 路径是否保留会计、Timelock 能否绕过，以及 Guardian/Rate Limit 是否真正限制损失。
 
-## 21. Candidate Validation and Findings
+## 21. 候选问题验证与 Findings
 
-Do not formalize a candidate without root cause, reachable attack or failure path, and impact. Validate exact dependency behavior and all existing guards. For material issues, cite the source locations and explain why the path is reachable and the impact follows. State evidence gaps without attempting local reproduction.
+没有 Root Cause、可达攻击/失败路径和 Impact，不得把候选问题正式化。验证依赖的准确行为和所有现有 Guard。对实质性问题引用源码位置，解释路径为何可达、影响如何产生。记录证据缺口，不尝试本地复现。
 
-Severity depends on impact and likelihood, informed by attack cost, privilege, capital, affected assets/users, exploit complexity, and recoverability. Do not report code style as a security issue, equate a failing test with a vulnerability, or assign High/Critical to an unproven theory.
+Severity 由 Impact 和 Likelihood 决定，并结合攻击成本、权限、资本、受影响资产/用户、利用复杂度和可恢复性。不要把代码风格报告为安全问题，不要把测试失败直接等同于漏洞，也不要把未证明理论标为 High/Critical。
 
-## Completion Checklist
+## 完成 Checklist
 
-A full protocol audit is complete only when each item is completed or explicitly marked blocked/non-applicable with evidence:
+完整协议审计只有在每项完成，或基于证据明确标记为受阻/不适用后才能结束：
 
-- [ ] Protocol purpose, architecture, components, and main lifecycles are explained.
-- [ ] Production contracts, entrypoints, dependencies, deployment/configuration, and upgrade paths are inventoried.
-- [ ] Critical assets, custody locations, transfer paths, and exit/emergency paths are traced.
-- [ ] Roles, indirect authorities, trust assumptions, and maximum impacts are documented.
-- [ ] Business workflows, state machines, cross-function combinations, and failure paths are reviewed.
-- [ ] Key invariants are independently derived and mapped to state-changing operations.
-- [ ] Asset/share/debt/reward/fee/reserve accounting is reconciled.
-- [ ] Economic incentives, attacker cost/profit, large capital, and cross-protocol composition are considered.
-- [ ] Oracle sources, manipulation, freshness, units, fallback, and downstream effects are reviewed.
-- [ ] External integrations, callbacks, failure behavior, pause, and upgrade assumptions are reviewed.
-- [ ] Access control, role transitions, initialization, and indirect bypasses are reviewed.
-- [ ] Upgrade authorization, implementation initialization, migrations, and storage layout are reviewed where applicable.
-- [ ] Signature binding, nonce/deadline/domain, and replay protections are reviewed where applicable.
-- [ ] Single-, cross-function, cross-contract, and read-only reentrancy are considered.
-- [ ] Precision, decimals, rounding direction, dust, and boundary behavior are checked.
-- [ ] Flash liquidity and transaction-ordering/MEV effects are considered.
-- [ ] Supported token behaviors and compatibility assumptions are reviewed from source.
-- [ ] Low-level calls, assembly, delegatecall, storage, memory, and returndata handling are reviewed where present.
-- [ ] DoS/griefing cost, scope, duration, and recovery are analyzed.
-- [ ] Pause, emergency, timelock, multisig, monitoring, and recovery assumptions are reviewed.
-- [ ] Every formal finding has affected code, root cause, path, impact, and remediation recommendations.
-- [ ] Every High/Critical finding has a code-grounded reachable path and concrete impact.
-- [ ] Conclusions are identified as static analysis and do not imply local validation.
-- [ ] Exclusions, unavailable evidence, unresolved economic risks, and unverified trust/design assumptions are recorded.
+- [ ] 已解释协议目的、架构、组件和主要生命周期。
+- [ ] 已盘点生产合约、入口、依赖、部署/配置和升级路径。
+- [ ] 已追踪关键资产、托管位置、转移路径和退出/应急路径。
+- [ ] 已记录角色、间接权限、信任假设和最大影响。
+- [ ] 已审查业务流程、状态机、跨函数组合和失败路径。
+- [ ] 已独立推导关键 Invariant，并映射到状态修改操作。
+- [ ] 已对账 Asset/Share/Debt/Reward/Fee/Reserve Accounting。
+- [ ] 已考虑经济激励、攻击成本/利润、大资本和跨协议组合。
+- [ ] 已审查 Oracle 来源、操纵、新鲜度、单位、Fallback 和下游影响。
+- [ ] 已审查外部集成、Callback、失败行为、Pause 和升级假设。
+- [ ] 已审查访问控制、角色转换、初始化和间接绕过。
+- [ ] 适用时已审查升级授权、Implementation 初始化、迁移和 Storage Layout。
+- [ ] 适用时已审查签名绑定、Nonce/Deadline/Domain 和 Replay 保护。
+- [ ] 已考虑单函数、跨函数、跨合约和 Read-only Reentrancy。
+- [ ] 已检查精度、Decimals、舍入方向、Dust 和边界行为。
+- [ ] 已考虑闪电流动性和交易排序/MEV 影响。
+- [ ] 已从源码审查协议支持的 Token 行为和兼容性假设。
+- [ ] 存在时已审查底层 Call、Assembly、Delegatecall、Storage、Memory 和 Returndata。
+- [ ] 已分析 DoS/Griefing 成本、范围、持续时间和恢复。
+- [ ] 已审查 Pause、Emergency、Timelock、Multisig、Monitoring 和恢复假设。
+- [ ] 每个正式 Finding 都有受影响代码、Root Cause、路径、Impact 和修复建议。
+- [ ] 每个 High/Critical Finding 都有基于代码的可达路径和具体影响。
+- [ ] 已说明结论来自静态分析，不暗示本地验证。
+- [ ] 已记录排除项、不可用证据、未解决经济风险和未验证的信任/设计假设。
 
-## Prohibited Shortcuts
+## 禁止的捷径
 
-Do not:
+不得：
 
-- infer safety from `nonReentrant`, a known library, or passing tests;
-- review one function while ignoring reachable cross-function/cross-contract behavior;
-- ignore funds, accounting, economics, rounding, admin power, or external dependencies;
-- assume standard token behavior, correct oracle output, honest callbacks, or permanently available integrations;
-- assume an administrator is honest unless that is an explicit trust assumption;
-- report an unproven concern as a vulnerability or inflate severity without path and impact;
-- lower severity solely because flash liquidity or a complex transaction sequence is required;
-- modify project files, write PoCs, or run local validation;
-- claim coverage or execution that did not occur.
+- 因为存在 `nonReentrant`、知名库或通过的测试就推断安全；
+- 只审查单个函数，忽略可达的跨函数/跨合约行为；
+- 忽略资金、会计、经济、舍入、管理员能力或外部依赖；
+- 假定 Token 标准、Oracle 正确、Callback 诚实或外部集成永久可用；
+- 假定管理员诚实，除非这是明确的 Trust Assumption；
+- 把无法证明的问题报告为漏洞，或在没有路径与影响时抬高 Severity；
+- 仅因为需要闪电流动性或复杂交易序列就降低 Severity；
+- 修改项目文件、编写 PoC 或运行本地验证；
+- 声称并未发生的审查覆盖或命令执行。

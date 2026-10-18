@@ -1,214 +1,214 @@
 ---
 name: solidity-foundry-security-review
-description: "Use when a read-only static review of Solidity contracts or Foundry projects is needed for security and protocol-level risks, including business logic, asset flows, accounting, economic attacks, trust boundaries, integrations, upgradeability, pricing, callbacks, signatures, or low-level EVM behavior."
+description: "适用于对 Solidity 合约或 Foundry 项目进行只读静态审查，分析安全和协议级风险，包括业务逻辑、资产流、会计、经济攻击、信任边界、外部集成、可升级性、定价、回调、签名或底层 EVM 行为。"
 license: AGPL-3.0-only
 metadata:
   author: derick
 ---
 
-# Review Solidity Contracts and Protocols in Foundry Projects
+# 审查 Foundry 项目中的 Solidity 合约和协议
 
-## Follow This Skill
+## 遵守本技能
 
-Follow this skill's applicable scope, execution rules, verification requirements, and output contract. Do not silently skip required steps or substitute advice for authorized implementation. Explicit user instructions and higher-priority instructions take precedence. If a required step cannot be completed, state the specific limitation, continue independent work, and do not claim that step was completed.
+执行时遵守本技能适用的范围、执行规则、验证要求和输出约定。不静默跳过必需步骤，不用建议代替已授权的实现。用户明确指令及更高优先级指令优先。必需步骤无法完成时，说明具体限制、继续独立工作，不宣称该步骤已经完成。
 
-## Core Principle
+## 核心原则
 
-Do not begin with a vulnerability taxonomy. First reconstruct what the protocol promises, how value moves, who can change state, and which properties must always hold. A material finding is a demonstrated violation of a business rule, invariant, or trust assumption—not merely unusual code.
+不要从漏洞分类表开始。先重建协议承诺什么、价值如何流转、谁能改变状态，以及哪些性质必须始终成立。实质性 Finding 必须证明某个业务规则、Invariant 或信任假设遭到破坏，而不能只因为代码看起来异常。
 
-Priority: **business logic > fund safety > accounting > economic attacks > permissions and trust > implementation hazards**.
+优先级：**业务逻辑 > 资金安全 > 会计 > 经济攻击 > 权限与信任 > 实现层风险**。
 
-## Read-Only Scope
+## 只读范围
 
-This skill performs static review and outputs findings and remediation recommendations only. Do not modify production code, tests, or project configuration; write PoCs or executable reproduction code; or run builds, tests, simulations, forks, deployments, or transactions. Reading existing source, tests, configuration, and supplied artifacts is in scope.
+本技能仅执行静态审查，输出发现和修复建议。不修改生产代码、测试或项目配置，不编写 PoC 或可执行复现代码，不运行构建、测试、模拟、Fork、部署或交易。可以阅读现有源码、测试、配置和用户提供的资料。
 
-Support conclusions with code locations, reachable conditions, and reasoning about impact. Identify missing evidence and confidence limits; continue reviewing unaffected areas. Do not present static analysis or supplied test results as locally executed validation.
+使用代码位置、可达条件和影响分析支撑结论。明确缺失证据和置信度限制，继续审查不受影响的部分。不得把静态分析或已有测试结果描述成本次执行的本地验证。
 
-## Review Modes
+## 审查模式
 
-Choose the mode from the user's request and state the effective scope.
+根据用户请求选择模式，并明确实际审查范围。
 
-### Targeted Security Review
+### 定向安全审查
 
-Use when the user names a contract, feature, patch, or risk surface. Review that scope plus every neighboring contract, dependency, test, script, and configuration needed to trace its behavior. Apply all relevant security lenses, but do not silently claim coverage of the rest of the protocol. List unreviewed surfaces and residual risks.
+当用户指定合约、功能、补丁或风险面时使用。审查该范围，以及追踪其行为所需的所有相邻合约、依赖、测试、脚本和配置。应用所有相关安全视角，但不要静默声称覆盖了协议其他部分。列出未审查表面和剩余风险。
 
-Read [Protocol Audit Methodology](references/protocol-audit-methodology.md) when the target includes asset custody, accounting, economic mechanisms, or any of its specialized surfaces. Use only the sections relevant to the target.
+当目标涉及资产托管、会计、经济机制或任一专项攻击面时，读取[协议审计方法](references/protocol-audit-methodology.md)中与目标相关的章节。
 
-### Full Protocol Audit
+### 完整协议审计
 
-Use when the user requests a complete, repository-wide, protocol-wide, exhaustive, or audit-style assessment. Read [Protocol Audit Methodology](references/protocol-audit-methodology.md) completely before analyzing findings. Follow its ordered phases and completion gate. Finding one severe issue does not end the audit.
+当用户要求完整、全仓库、协议级、穷尽式或正式审计时使用。在分析 Finding 前完整阅读[协议审计方法](references/protocol-audit-methodology.md)，遵循其中的阶段顺序和完成门槛。发现一个严重问题不代表审计结束。
 
-### Conceptual Question
+### 概念问题
 
-Explain the concept without implying that code was reviewed. Ask for or inspect the project only when the user requests a code-grounded conclusion.
+只解释概念，不暗示已经审查代码。只有用户要求基于代码的结论时，才检查或索取项目。
 
-## Non-Negotiable Review Rules
+## 不可跳过的审查规则
 
-### Read the Project Before Making Claims
+### 下结论前先读项目
 
-1. Search for contracts, interfaces, libraries, tests, scripts, mocks, deployment configuration, docs, and upgrade tooling.
-2. Read the in-scope files and all neighboring components required to understand cross-contract behavior.
-3. Treat tests as evidence of intent, not proof of correctness or completeness.
-4. If relevant files cannot be read, report the attempted paths and explain the resulting coverage limit. Never substitute a generic checklist silently.
+1. 搜索合约、接口、库、测试、脚本、Mock、部署配置、文档和升级工具。
+2. 阅读范围内文件，以及理解跨合约行为所需的所有相邻组件。
+3. 把测试视为意图证据，而不是正确性或完整性的证明。
+4. 如果相关文件无法读取，报告尝试读取的路径并解释覆盖限制。不要静默退回通用 Checklist。
 
-### Verify Installed Dependencies
+### 验证项目实际安装的依赖
 
-Before reasoning about OpenZeppelin, Solady, Uniswap, Chainlink, proxy libraries, token standards, or other dependencies:
+在分析 OpenZeppelin、Solady、Uniswap、Chainlink、代理库、Token 标准或其他依赖前：
 
-1. Resolve the installed version through `foundry.toml`, `remappings.txt`, `lib/`, `node_modules/`, or package configuration.
-2. Read the exact imported source, including inherited hooks, modifiers, constructors, initializers, storage, and documented extension points.
-3. Do not rely on a remembered API or assume a well-known library makes the integration safe.
-4. Prefer importing, inheriting, composing, or configuring proven components when recommending a fix. Never copy external library source into the user's contract.
-5. Treat proxies, initializers, namespaced storage, storage gaps, `delegatecall`, and upgrade scripts as storage-layout and authorization scope.
+1. 通过 `foundry.toml`、`remappings.txt`、`lib/`、`node_modules/` 或包配置解析实际安装版本。
+2. 阅读真正被导入的源码，包括继承 Hook、Modifier、Constructor、Initializer、Storage 和文档化扩展点。
+3. 不要依赖记忆中的 API，也不要因为使用知名库就假定集成安全。
+4. 建议修复时优先 Import、Inherit、Compose 或 Configure 成熟组件。不要把外部库源码复制进用户合约。
+5. 当出现代理、Initializer、命名空间存储、Storage Gap、`delegatecall` 或升级脚本时，把 Storage Layout 和升级授权纳入范围。
 
-### Use a Capable Attacker Model
+### 使用有能力的攻击者模型
 
-Unless the protocol explicitly prevents it, assume an attacker can:
+除非协议明确阻止，否则假设攻击者可以：
 
-- create many accounts and deploy arbitrary contracts;
-- control callbacks, return values, and intentional reverts from attacker-owned code;
-- use flash liquidity, MEV, transaction ordering, and cross-protocol composition;
-- transfer tokens or force native value directly to protocol addresses;
-- choose extreme inputs, wait for favorable chain state, and combine valid operations in one transaction;
-- introduce unusual but permitted token behavior.
+- 创建多个账户并部署任意合约；
+- 控制攻击者合约的 Callback、返回值和故意 Revert；
+- 使用闪电流动性、MEV、交易排序和跨协议组合；
+- 直接向协议地址转 Token 或强制转入原生资产；
+- 选择极端输入、等待有利链上状态，并在一个交易中组合合法操作；
+- 引入协议允许但行为异常的 Token。
 
-Do not reduce the attacker to an honest EOA following the happy path.
+不要把攻击者简化成只走正常路径的诚实 EOA。
 
-## Core Workflow
+## 核心工作流
 
-### 1. Establish Scope and Intent
+### 1. 确定范围和意图
 
-- Read `README.md`, `foundry.toml`, docs, target contracts, tests, scripts, and configuration.
-- Identify the contracts in scope and the adjacent components required for complete call paths.
-- Record exclusions, unavailable dependencies, unavailable deployment-state evidence, and unverified design assumptions.
-- For a full audit, inventory all production contracts and externally reachable entrypoints.
+- 阅读 `README.md`、`foundry.toml`、文档、目标合约、测试、脚本和配置。
+- 识别范围内合约，以及补全调用路径所需的相邻组件。
+- 记录排除项、不可用依赖、不可用的部署状态证据和未验证设计假设。
+- 完整审计时，盘点所有生产合约和外部可达入口。
 
-### 2. Build the Protocol Model
+### 2. 建立协议模型
 
-Write a compact working model before hunting for bugs:
+在找漏洞前写出紧凑的工作模型：
 
-- protocol goal and architecture;
-- production entrypoint inventory and the primary lifecycle each entrypoint belongs to;
-- unprivileged and privileged actors;
-- asset custody and end-to-end value flows;
-- state machines and valid/invalid transitions;
-- accounting authority for assets, shares, debts, rewards, fees, and reserves;
-- price, time, signature, randomness, configuration, and off-chain assumptions;
-- external integrations and failure behavior;
-- role-to-capability-to-maximum-impact trust matrix.
+- 协议目标和架构；
+- 生产入口清单，以及每个入口所属的主要生命周期；
+- 无权限参与者和特权参与者；
+- 资产托管位置和端到端价值流；
+- 状态机，以及合法/非法状态转换；
+- 资产、份额、债务、奖励、费用和储备的会计权威；
+- 价格、时间、签名、随机数、配置和链下假设；
+- 外部集成及其失败行为；
+- Role → Capability → Maximum Impact 信任矩阵。
 
-You must be able to explain the primary entrypoints, where assets are held, which component controls accounting and pricing, and which components can move value or change critical state. If you cannot, continue modeling before producing findings.
+必须能够解释主要入口、资产保存位置、哪个组件控制会计与定价，以及哪些组件可以转移价值或改变关键状态。如果不能，继续建模，不要开始输出 Finding。
 
-Keep the model operational rather than narrative-only. For any non-trivial review, maintain concise working artifacts as needed:
+模型应当能直接指导审计，而不是只有叙述。对非平凡审查，按需维护精简工作产物：
 
-- asset-flow notes covering source, custodian, accounting source of truth, conversion formula/unit, normal exit, emergency exit, privileged destination, and unsupported direct-transfer behavior;
-- a role-to-capability-to-maximum-impact matrix, including indirect authorities and dangerous role combinations;
-- an invariant map from property → state-changing functions/callbacks/privileged actions/external state that can affect it;
-- an external dependency map covering the value or data relied on, who can influence it, failure behavior, pause/upgrade assumptions, and whether users can still exit;
-- a candidate ledger that distinguishes confirmed findings, rejected theories, unresolved risks, missing evidence, and unreviewed surfaces.
+- 资产流记录：来源、托管方、会计权威、转换公式/单位、正常退出、应急退出、特权去向，以及直接转账等不支持行为；
+- Role → Capability → Maximum Impact 矩阵，包括间接权限和危险权限组合；
+- Invariant 映射：性质 → 可能影响它的状态修改函数、Callback、特权操作和外部状态；
+- 外部依赖映射：依赖的价值或数据、谁能影响它、失败行为、Pause/Upgrade 假设，以及用户是否仍能退出；
+- 候选问题台账：区分已确认 Finding、已排除理论、未解决风险、缺失证据和未审查表面。
 
-### 3. Derive Invariants and Failure Conditions
+### 3. 推导 Invariant 和失败条件
 
-Derive properties from the protocol's own rules rather than copying generic examples. Cover as applicable:
+从协议自身规则推导性质，不要照抄通用示例。按适用情况覆盖：
 
-- conservation of assets and obligations;
-- user ownership and withdrawal entitlement;
-- solvency and collateralization;
-- share/asset, debt, reward, reserve, and fee consistency;
-- state-transition prerequisites and terminal states;
-- privilege boundaries and user guarantees;
-- price freshness, unit consistency, and manipulation resistance.
+- 资产和义务守恒；
+- 用户所有权和提现权益；
+- 偿付能力和抵押要求；
+- 份额/资产、债务、奖励、储备和费用一致性；
+- 状态转换前置条件和终态；
+- 权限边界和用户保证；
+- 价格新鲜度、单位一致性和抗操纵能力。
 
-For each invariant, identify every operation and external state change that can affect it.
+对每个 Invariant，识别所有可能影响它的操作和外部状态变化。
 
-### 4. Trace End-to-End and Composed Paths
+### 4. 追踪端到端与组合路径
 
-Trace public entrypoints through internal functions, neighboring contracts, callbacks, and external protocols until the final state and value transfer. Examine:
+从 Public/External 入口追踪到内部函数、相邻合约、Callback 和外部协议，直到最终状态与价值转移。检查：
 
-- normal lifecycles such as deposit → mint → earn → withdraw;
-- reordered, repeated, interrupted, and cross-function sequences;
-- multi-user interactions and transferable positions/shares;
-- external-call intermediate states and read-only observations;
-- direct asset transfers, donations, forced value, and stale external state;
-- failure paths, pause paths, recovery paths, and partial updates.
+- deposit → mint → earn → withdraw 等正常生命周期；
+- 重新排序、重复、中断和跨函数序列；
+- 多用户交互和可转移头寸/份额；
+- 外部调用期间的中间状态和只读观察；
+- 直接转账、Donation、强制转入和过期外部状态；
+- 失败路径、Pause 路径、恢复路径和部分更新。
 
-Always ask whether a sequence of individually valid operations creates an unintended result.
+始终追问：多个单独合法的操作组合后，是否会产生系统未预期的结果？
 
-### 5. Apply the Relevant Security Lenses
+### 5. 应用相关安全视角
 
-After the model is clear, inspect the applicable surfaces in [Protocol Audit Methodology](references/protocol-audit-methodology.md):
+模型清楚后，检查[协议审计方法](references/protocol-audit-methodology.md)中的适用表面：
 
-- asset flow, business logic, invariants, accounting, precision, and rounding;
-- economic model, oracle manipulation, flash liquidity, and MEV;
-- roles, access control, signatures, upgrades, and operational controls;
-- reentrancy, callbacks, external protocols, and token compatibility;
-- low-level EVM behavior, assembly, denial of service, and griefing.
+- 资产流、业务逻辑、Invariant、会计、精度和舍入；
+- 经济模型、Oracle 操纵、闪电流动性和 MEV；
+- 角色、访问控制、签名、升级和运维控制；
+- 重入、Callback、外部协议和 Token 兼容性；
+- 底层 EVM、Assembly、DoS 和 Griefing。
 
-For a full audit, cover every methodology section and mark non-applicable sections with a reason. For a targeted review, cover every lens reachable from the selected scope and disclose the rest as unreviewed.
+完整审计必须覆盖方法中的每一节，并为不适用项记录理由。定向审查必须覆盖所选范围可达的全部安全视角，并公开其余未审查部分。
 
-When a request is ambiguous, do not silently expand a narrow target into a full protocol audit. State the effective scope you inferred, review the reachable protocol context deeply, and list the protocol-level sections that would still require a full audit.
+当用户请求范围含糊时，不要静默把窄目标扩展为完整协议审计。说明你推断的实际范围，深入审查可达的协议上下文，并列出仍需完整审计覆盖的协议级章节。
 
-### 6. Validate Candidates
+### 6. 验证候选问题
 
-A formal finding requires all of:
+正式 Finding 必须同时具备：
 
 ```text
-root cause + reachable attack/failure path + concrete impact
+Root Cause + 可达的攻击/失败路径 + 具体 Impact
 ```
 
-For each candidate:
+对每个候选问题：
 
-1. Identify the broken invariant, business rule, or trust assumption.
-2. Identify the actor, prerequisites, required privilege, capital, and external conditions.
-3. Trace the exact calls and state changes.
-4. Quantify affected assets, users, accounting drift, liveness loss, or privilege impact where possible.
-5. Challenge the candidate against guards, actual dependency behavior, transaction atomicity, and protocol assumptions.
-6. Cite the source evidence supporting each material finding and distinguish established behavior from assumptions.
+1. 识别被破坏的 Invariant、业务规则或信任假设。
+2. 识别攻击者、前置条件、所需权限、资本和外部条件。
+3. 追踪准确调用与状态变化。
+4. 尽可能量化受影响资产、用户、会计漂移、可用性损失或权限影响。
+5. 用现有 Guard、实际依赖行为、交易原子性和协议假设反证候选问题。
+6. 引用支撑每项实质性发现的源码证据，区分已建立的行为与假设。
 
-If the path or impact cannot be established, lower confidence, classify it as unresolved risk, or discard it. Do not turn style issues or hypothetical discomfort into vulnerabilities.
+如果无法建立攻击路径或影响，应降低置信度、归入未解决风险或丢弃。不要把代码风格或理论上的不适包装成漏洞。
 
-### 7. Recommend Minimal Fixes
+### 7. 推荐最小修复
 
-- Describe the smallest change that would restore the broken invariant.
-- Specify what should be checked, where, and which security property the recommendation restores.
-- Explain compatibility, accounting, and storage-layout implications when relevant.
-- Keep remediation as written recommendations; do not implement patches or test code.
+- 说明恢复被破坏 Invariant 所需的最小变更。
+- 明确应检查什么、在哪里检查，以及建议恢复什么安全性质。
+- 适用时说明兼容性、会计和 Storage Layout 影响。
+- 修复仅以文字建议呈现，不实现补丁或测试代码。
 
-## Finding Standard
+## Finding 标准
 
-Order findings by `Critical`, `High`, `Medium`, `Low`, then `Informational`. Calibrate severity using impact, likelihood, attack cost, required privilege, affected assets/users, and exploit complexity.
+按 `Critical`、`High`、`Medium`、`Low`、`Informational` 排序。结合 Impact、Likelihood、攻击成本、所需权限、受影响资产/用户和利用复杂度确定 Severity。
 
-Each finding must include:
+每个 Finding 必须包含：
 
-1. **Title** — root cause and consequence in one sentence.
-2. **Severity and confidence** — with the decisive factors when not obvious.
-3. **Affected code** — precise files, lines, functions, and relevant dependencies.
-4. **Broken invariant or trust assumption**.
-5. **Root cause** — the code, design, accounting, formula, permission, state update, or integration error.
-6. **Attack path or failure scenario** — ordered prerequisites, calls, state changes, and result.
-7. **Impact** — attacker gain, user/protocol loss, accounting corruption, privilege escalation, or liveness failure.
-8. **Evidence** — source locations and reasoning supporting the path and impact, with missing evidence stated explicitly.
-9. **Recommendation** — a written description of the minimal remediation and the property it would restore.
+1. **标题**——一句话说明 Root Cause 和后果。
+2. **Severity 和 Confidence**——不明显时说明决定因素。
+3. **受影响代码**——准确文件、行、函数和相关依赖。
+4. **被破坏的 Invariant 或信任假设**。
+5. **Root Cause**——代码、设计、会计、公式、权限、状态更新或集成错误。
+6. **攻击路径或失败场景**——按顺序说明前置条件、调用、状态变化和结果。
+7. **Impact**——攻击者收益、用户/协议损失、会计破坏、权限提升或可用性失败。
+8. **证据**——支撑路径与影响的源码位置及分析，明确缺失证据。
+9. **Recommendation**——以文字说明最小修复建议，以及它将恢复的安全性质。
 
-High and Critical findings require a code-grounded reachable path and concrete impact. Do not lower severity merely because an attack uses flash liquidity or is operationally complex if realistic impact remains severe.
+High/Critical Finding 必须具有基于代码的可达路径和具体影响。如果现实影响仍然严重，不要仅因为使用闪电流动性或操作复杂就降低 Severity。
 
-## Output Contract
+## 输出约定
 
-Output findings and remediation recommendations, ordered by severity and following the finding standard above. Include only the scope, assumptions, and evidence limits needed to assess those findings. For a full protocol review, summarize coverage and exclusions without implying dynamic validation.
+按照上述 Finding 标准，按严重程度输出发现和修复建议。仅附上判断这些发现所需的范围、假设和证据限制。完整协议审查应概述覆盖和排除项，不暗示做过动态验证。
 
-If no material issue is found, say so explicitly and state the static review's coverage limits. Keep unresolved risks separate from confirmed findings. Do not create test plans, PoCs, executable reproduction code, or patches.
+如果没有发现实质性问题，应明确说明，并交代静态审查的覆盖限制。将未解决风险与已确认发现分开。不生成测试计划、PoC、可执行复现代码或补丁。
 
-## Completion Gate
+## 完成门槛
 
-Before calling a targeted review complete, confirm that the selected scope, all reachable value/call paths, applicable security lenses, candidate validation, and coverage limits are addressed.
+定向审查完成前，确认所选范围、所有可达价值/调用路径、适用安全视角、候选问题验证和覆盖限制均已处理。
 
-Before calling a full protocol audit complete, use the completion checklist in [Protocol Audit Methodology](references/protocol-audit-methodology.md). Every phase must be completed or explicitly marked blocked/non-applicable with evidence. A severe early finding is not a stopping condition.
+完整协议审计完成前，使用[协议审计方法](references/protocol-audit-methodology.md)中的完成 Checklist。每个阶段都必须完成，或基于证据明确标记为受阻/不适用。早期发现严重问题不是停止条件。
 
-## Response Style
+## 回复风格
 
-- Be concise, skeptical, and file-grounded.
-- Lead with findings rather than generic background.
-- Do not ask the user to inspect files you can inspect yourself.
-- Separate confirmed findings, unresolved risks, and design/trust assumptions.
-- State uncertainty, scope limitations, and unavailable evidence clearly.
-- Do not dump a generic vulnerability encyclopedia into the final answer.
+- 简洁、怀疑性强，并基于文件。
+- 先给 Findings，不要先铺通用背景。
+- 不要要求用户检查你自己可以检查的文件。
+- 区分已确认 Finding、未解决风险和设计/信任假设。
+- 明确说明不确定性、范围限制和不可用证据。
+- 不要把最终回复变成通用漏洞百科。

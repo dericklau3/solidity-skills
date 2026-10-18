@@ -1,53 +1,53 @@
 ---
 name: doc-natspec
-description: "Use when reviewing, completing, or repairing Solidity / Foundry NatSpec, including public APIs, meaningful internal behavior, events, structs, and inherited documentation."
+description: "用于审查、补齐或修复 Solidity / Foundry NatSpec，包括公共 API、重要内部行为、event、struct 和继承文档。"
 license: AGPL-3.0-only
 metadata:
   author: derick
 ---
 
-# Write and Repair Solidity NatSpec
+# 编写并修复 Solidity NatSpec
 
-## Follow This Skill
+## 遵守本技能
 
-Follow this skill's applicable scope, execution rules, verification requirements, and output contract. Do not silently skip required steps or substitute advice for authorized implementation. Explicit user instructions and higher-priority instructions take precedence. If a required step cannot be completed, state the specific limitation, continue independent work, and do not claim that step was completed.
+执行时遵守本技能适用的范围、执行规则、验证要求和输出约定。不静默跳过必需步骤，不用建议代替已授权的实现。用户明确指令及更高优先级指令优先。必需步骤无法完成时，说明具体限制、继续独立工作，不宣称该步骤已经完成。
 
-## Scope and Execution
+## 范围与执行
 
-For documentation edits, directly repair clear gaps within the requested scope. Explicit review-only requests remain read-only. Otherwise use the configured source directory, normally `src/`. Inspect project-owned interfaces/base contracts defining the in-scope API; edit their docs only when missing, inaccurate, or explicitly requested.
+用户要求修改文档时，直接修复指定范围内的明确缺口；明确要求仅评审时保持只读。未指定时使用项目配置的源码目录，通常为 `src/`。检查定义范围内 API 的项目自有接口/基类；其文档缺失、不准确或用户明确要求时才修改。
 
-Exclude vendored dependencies, pure tests, unrelated files, and libraries from default edits unless requested. Preserve implementation and unrelated work; do not turn documentation into a refactor or rename sweep. User instructions and existing authorization take precedence over skill defaults.
+默认不编辑依赖源码、纯测试、无关文件和 library，用户指定时除外。保留实现和无关改动，不将文档工作扩展为重构或重命名。用户指令与已有授权优先于技能默认规则。
 
-## Establish Meaning
+## 确定语义
 
-Read compiler configuration, in-scope code, and relevant inherited declarations. Use adjacent tests and callers to resolve behavior. When dependency hooks, modifiers, initializers, storage, or imported types determine meaning, resolve remappings and read the exact installed source.
+阅读编译器配置、范围内代码及相关继承声明，利用相邻测试和 caller 确定行为。依赖 hook、modifier、initializer、storage 或导入类型决定语义时，通过 remapping 读取实际安装源码。
 
-If a function, field, event parameter, or inherited guarantee remains ambiguous, leave that object's documentation unchanged, identify the uncertainty, and continue independent objects. Ask only when missing information materially determines the documentation and cannot be recovered from the project. Report unavailable files without treating the whole pass as blocked.
+函数、字段、event 参数或继承保证仍有歧义时，保留该对象文档、指出疑点并继续独立对象。只有无法从项目获取、且实质影响文档的信息才需要询问。文件不可读时说明具体限制，不将整个检查视为受阻。
 
-## Coverage and Quality
+## 覆盖与质量
 
-Require accurate NatSpec for in-scope public/external functions, complex internal/private functions, and externally meaningful structs/events. Tiny helpers and obvious passthroughs need no forced internal documentation.
+范围内 public/external 函数、复杂 internal/private 函数及对外有意义的 struct/event 必须具有准确 NatSpec。微小 helper 和明显透传逻辑不强制补内部文档。
 
-For functions without sufficient inherited documentation:
+没有充分继承文档的函数：
 
-- Include `@notice`, one `@param` per input, and one `@return` per return value.
-- Include `@dev` for non-obvious permissions, restrictions, side effects, invariants, failure conditions, or edge cases.
-- Explain actual guarantees and units; avoid filler that repeats identifiers or promises absent from the implementation.
+- 包含 `@notice`，每个输入对应 `@param`，每个返回值对应 `@return`。
+- 权限、限制、副作用、不变量、失败条件或边界不明显时补充 `@dev`。
+- 说明真实保证与单位，不重复标识符凑内容，不承诺实现并不提供的行为。
 
-For structs, explain their purpose and important fields. For events, explain when/why emission occurs and what parameters mean to off-chain consumers, including amounts/units and conditions where relevant.
+Struct 说明用途和重要字段。Event 说明何时/为何触发，以及参数对链下消费者的含义，按需说明金额/单位和触发条件。
 
-## Inheritance
+## 继承
 
-Reuse sufficient, accurate inherited documentation when an override preserves its semantics. Use `@inheritdoc BaseName` when it clarifies or selects the source. Do not duplicate tags merely to satisfy coverage counts.
+Override 保持父级语义时，复用充分且准确的继承文档。需要明确或选择来源时使用 `@inheritdoc BaseName`，不为标签覆盖率机械复制文档。
 
-Read the inherited declaration before relying on it. Add local documentation when an override changes, narrows, extends, or clarifies behavior, permissions, accounting, state transitions, side effects, reverts, or integration guarantees. Explain the purpose of a non-obvious override and the library requirement it satisfies.
+依赖继承文档前先读取父级声明。Override 改变、收窄、扩展或澄清行为、权限、会计、状态转换、副作用、revert 或集成保证时，补充本地说明。解释非显然 override 的目的及其满足的库要求。
 
-For upgradeable contracts, document externally meaningful initializer order, reinitializer intent, storage assumptions, and upgrade restrictions. Do not claim dependency guarantees or verified layout compatibility without evidence.
+可升级合约说明对外有意义的 initializer 顺序、reinitializer 意图、storage 假设和升级限制。没有证据时，不宣称依赖保证或已验证布局兼容性。
 
-## Verification and Final Response
+## 验证与最终回复
 
-After edits, run `forge doc` and inspect the diff for unintended implementation changes. The documentation build validates syntax/buildability, not semantic accuracy. Do not add unrelated tests for comment-only edits. Honor project-required checks; after they pass, repeat only for new changes, failures, or unresolved concerns.
+编辑后运行 `forge doc`，检查 diff 中是否意外修改实现。文档构建验证语法/可构建性，不证明语义准确。仅注释改动不新增无关测试。完成项目必需检查；通过后仅因新增改动、失败或未解决疑点重复验证。
 
-If `forge doc` fails, distinguish new documentation errors from baseline compile/configuration issues or environment blockers. Report the actual command result and any unfinished coverage; do not imply a successful build.
+`forge doc` 失败时，区分新文档错误、基线编译/配置问题和环境阻塞。报告实际命令结果及未完成覆盖，不暗示构建通过。
 
-Briefly summarize files documented, relevant interface/inheritance coverage, `forge doc` result, and remaining ambiguity. Omit empty categories and generic advice.
+简短说明已补文档文件、相关接口/继承覆盖、`forge doc` 结果和剩余歧义。省略空分类与通用建议。
