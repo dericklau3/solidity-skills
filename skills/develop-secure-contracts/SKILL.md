@@ -14,6 +14,14 @@ metadata:
 
 编辑前读取项目配置、目标代码、测试、部署脚本和实际安装依赖，保留无关改动。使用实际编译器/backend 确认支持 `require(condition, CustomError(...))`，不设固定编译器版本、不静默升级，也不擅自改成 revert string 或 `if/revert`。存在不兼容时，先解决再实现依赖该语法的部分。
 
+增量开发已有系统时，保留请求范围外的函数/event ABI、错误约定、权限、资产语义和存储兼容性。不为统一风格改写已有入口。完成请求确实需要改变这些契约时，先识别受影响的 caller、集成和部署状态，仅在已有授权范围内实施并同步相关依赖；需要扩大范围的部分说明具体原因，继续独立工作。
+
+## 沿用 foundry-starter 编码风格
+
+默认按用户的 foundry-starter 风格开发。编写或修改 `src/`、`script/` 前，读取[编码与部署约定](references/foundry-starter-style.md)，并对照当前项目的 Wallet、Errors 和部署脚本等价文件。先确认导入、命名、错误组织、函数结构及部署职责，再实现业务；不能只满足安全规则却重新设计项目组织。
+
+源码优先复用共享 `Errors` 和现有命名习惯；部署沿用外层入口控制广播、`ContractCollection` 接收明确参数并完成部署、`BaseDeployScript` 管理配置、`ContractRegistry` 保存地址的分工。项目明确约定和用户指令优先；模板中的业务限制、地址、依赖版本与逻辑缺陷不得机械复制。
+
 ## 使用 OpenZeppelin 组件
 
 按请求的行为选用组件，不为每个合约机械添加全部组件。导入实际安装源码，不复制源码或重复实现已有基础能力。根据该版本确认路径、API、hook、constructor 和 initializer。
