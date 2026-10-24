@@ -24,9 +24,12 @@
 - 多继承声明按现有样式分行。先列 `using`、常量/immutable、状态变量与事件，再组织构造、初始化和相关函数。相关 struct、modifier、内部 helper 靠近使用它们的逻辑；不要为全局统一排序移动已有状态变量。
 - 默认复用 `src/lib/Errors.sol`，通过 `Errors.InvalidParameter()` 等命名空间引用错误。语义匹配时复用现有错误，需要新业务错误时补入该库；不为每个参数机械新增一个错误。脚本注册表已有局部错误保持局部，不为集中化改写它。
 - 入口校验使用 `require(condition, Errors.ErrorName())`。共享同一错误语义的简单入参可合并，例如地址非零与金额正数；权限、资产支持、签名等不同失败原因保持独立校验。具体合法输入由业务决定，不复制模板的限制。
-- 状态变量和普通参数采用现有 camelCase；初始化参数与状态同名时沿用 `tokenRecipient_`、`signer_` 等尾下划线。内部 helper 沿用 `_updateTokenAllowed`、`_onlyEOA` 等前下划线；常量/immutable 哈希名称沿用 `ORDER_TYPEHASH` 形式。
+- 状态变量和普通参数采用现有 camelCase；`constructor` 和 `initialize` 的所有具名参数均使用尾下划线，如 `tokenRecipient_`、`signer_`、`amount_`，不以是否与状态同名为条件。内部 helper 沿用 `_updateTokenAllowed`、`_onlyEOA` 等前下划线；常量/immutable 哈希名称沿用 `ORDER_TYPEHASH` 形式，所有 constant/immutable 状态变量均声明为 `private`。
 - 配置入口默认沿用 `updateXxx`、`UpdateXxx` 事件的命名习惯。已有 API 名称保持不变，不为风格重命名。写入状态后按项目约定发出事件。
-- 简单逻辑保持直接；重复校验或复用业务步骤再抽内部 helper。需要 modifier 时可沿用薄 modifier 调用内部校验函数的写法，不为单次调用拆出无意义的层级、配置框架或基类。
+- 权限使用 `Ownable`（代理用 `OwnableUpgradeable`），构造/初始化不接收 owner 参数，直接以 `msg.sender` 初始化 owner；不主动引入两步所有权或角色权限体系。
+- 地址有效性 `require` 只检查非零，不添加 `code.length`、`extcodesize` 或 `isContract` 限制；零地址有明确业务语义时保留。
+- 构造/初始化设置且外部入口仍可修改的配置，必须共用 `_setXxx` 或 `_updateXxx` internal helper，集中校验、赋值与配置事件；初始化与外部 setter 均调用它，权限与 guard 留在外部入口。仅初始化写入且不对外提供修改入口的变量可直接赋值。
+- 简单逻辑保持直接；其他重复校验或复用业务步骤再抽内部 helper。需要 modifier 时可沿用薄 modifier 调用内部校验函数的写法，不为单次调用拆出无意义的层级、配置框架或基类。
 - 保持 Wallet 风格的紧凑 NatSpec，说明实际行为、参数、单位及重要限制，不照抄错误或缺失的注释。注释语言沿用目标文件或用户要求，不因为技能正文是中文而批量翻译项目注释。
 - 遵循目标项目格式化配置，保留无关代码；不把模板里的尾随空格、不规则空行等偶然排版当成必需风格。
 
@@ -49,7 +52,7 @@
 2. 创建实现，使用项目现有 key 保存实现地址，例如 `walletImpl`。
 3. 在 helper 内使用 `abi.encodeCall(Wallet.initialize, (tokenRecipient, signer))` 构造初始化数据；按实际签名核对顺序，不使用字符串形式的 `abi.encodeWithSignature`。
 4. 创建 `ERC1967Proxy` 并原子初始化；返回 `Wallet wallet` 这样的具体类型并保存代理地址，例如 `wallet`。
-5. 完成该部署所需且已授权的业务配置，如支持资产设置。验证执行身份与初始化得到的权限一致。
+5. 完成该部署所需且已授权的业务配置，如支持资产设置。验证执行身份与初始化得到的权限一致；owner 取实际构造/初始化调用者 `msg.sender`，工厂部署需核对工厂是否成为 owner，不额外传入 owner 参数。
 
 已有 helper 是完整部署单元时，不无故拆成上层需要手动组合的“实现部署”和“代理部署”两个函数。普通非代理合约直接部署并保存，不强行添加 UUPS。新增 key 沿用项目的 lowerCamelCase，保留既有 key 和注册表 schema。
 

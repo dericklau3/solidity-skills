@@ -22,6 +22,37 @@ metadata:
 
 源码优先复用共享 `Errors` 和现有命名习惯；部署沿用外层入口控制广播、`ContractCollection` 接收明确参数并完成部署、`BaseDeployScript` 管理配置、`ContractRegistry` 保存地址的分工。项目明确约定和用户指令优先；模板中的业务限制、地址、依赖版本与逻辑缺陷不得机械复制。
 
+## 命名、权限与配置写入约定
+
+以下是新增合约和本次授权修改代码的默认约定；参考项目中的旧写法不覆盖这些规则。已有 ABI、权限或存储兼容性仍按前述增量开发边界处理，不为统一风格改写范围外代码。
+
+- `constructor` 和 `initialize` 的所有具名参数统一使用尾下划线，例如 `token_`、`receiver_`、`amount_`；不以是否与状态变量同名为条件。`owner_` 仅说明命名形式，构造和初始化入口不接收 owner 参数。
+- 权限使用 `Ownable`，代理合约使用对应的 `OwnableUpgradeable`；不主动引入 `Ownable2Step`、`Ownable2StepUpgradeable` 或 `AccessControl`。普通合约按实际依赖版本通过 `Ownable(msg.sender)` 或该版本等价机制设置 owner；代理在 `initialize` 中通过 `__Ownable_init(msg.sender)` 或该版本等价机制设置 owner。
+- owner 取执行构造或初始化时的 `msg.sender`，不使用 `tx.origin`，不额外传入 owner/initialOwner/admin 来指定 owner。部署和测试核对真实调用者；通过工厂创建时 owner 可能是工厂，不能假定总是最外层 EOA，也不能为调整 owner 偷加初始化参数。
+- 所有 `constant`、`immutable` 状态变量都使用 `private`，例如 `uint256 private constant MAX_AMOUNT = 100e18;`、`IERC20 private immutable token;`。仅在业务明确需要外部读取时提供显式 getter，不通过 `public` 声明自动生成 getter。
+- 在 `constructor` 或 `initialize` 中设置、且另有外部配置入口可修改的状态，必须抽成共享 `internal` 函数 `_setXxx` 或 `_updateXxx`。初始化和外部入口调用同一 helper，由 helper 统一负责入参校验、状态写入和配置事件；外部入口保留 `onlyOwner` 及适用 guard。不可在初始化中直接赋值、在 setter 中再重复一份逻辑，也不通过 `this.setXxx(...)` 绕行外部调用。仅初始化时写入且没有外部修改入口的变量可以直接赋值。
+- 地址参数的有效性 `require` 只检查 `!= address(0)`，不添加 `xxx.code.length > 0`、`extcodesize` 或 `Address.isContract` 等合约代码存在性限制。业务明确用零地址表示特殊模式时保留该语义。权限、支持资产等业务条件仍单独校验；第三方协议身份与部署核验在配置和 Fork 验证中完成，不转化为入口代码长度检查。
+
+共享配置写入示例（片段，沿用项目的 `Errors` 和事件定义）：
+
+```solidity
+function initialize(address receiver_) external initializer {
+    __Ownable_init(msg.sender);
+    _setReceiver(receiver_);
+}
+
+function setReceiver(address receiver_) external onlyOwner {
+    _setReceiver(receiver_);
+}
+
+function _setReceiver(address receiver_) internal {
+    require(receiver_ != address(0), Errors.InvalidReceiver(receiver_));
+    address previous = receiver;
+    receiver = receiver_;
+    emit ReceiverUpdated(previous, receiver_);
+}
+```
+
 ## 第三方协议使用目标网络真实部署
 
 项目集成第三方链上协议时，必须调用目标网络的真实协议部署，包括但不限于 Uniswap、PancakeSwap、Aave。该要求适用于所有实际集成的第三方协议，不限于列举名称；不要自行实现简化版或部署本地仿制协议来替代。
@@ -40,7 +71,7 @@ metadata:
 
 | 需求 | 集成规则 |
 | --- | --- |
-| 权限 | 单一管理主体使用 `Ownable`/`Ownable2Step`；不同角色使用 `AccessControl`。按需限制 mint、配置、暂停/恢复、资产回收和升级。不无故叠加权限体系。 |
+| 权限 | 使用 `Ownable`，代理使用 `OwnableUpgradeable`；owner 由构造或初始化中的 `msg.sender` 确定，不接收 owner 参数。按需限制 mint、配置、暂停/恢复、资产回收和升级。不无故叠加权限体系。 |
 | 重入保护 | 对资产转移入口，以及共享暴露会计状态的其他可写入口，使用已安装的 `ReentrancyGuard` 或支持的可升级等价组件。遵守初始化和 EVM 要求。受保护的 external 函数复用 internal helper，避免相互调用导致嵌套进入重入锁。 |
 | 紧急暂停 | 使用 `Pausable` 与有权限的暂停/恢复入口。明确暂停哪些操作、是否保留紧急退出。仅继承不会自动暂停：需使用 guard 或适当的 token pause 扩展/hook。 |
 | ERC20 | 继承 `ERC20` 及必要扩展，外部代币转账使用 `SafeERC20`。保留标准 transfer、allowance、mint/burn 和 event 语义。 |
@@ -97,6 +128,6 @@ require(amount <= available, InsufficientBalance(available, amount));
 
 使用项目实际配置编译。补充并运行聚焦测试：入参错误、越权、暂停/恢复与紧急策略、流入到账前不记账、流出回调前已扣账、到账不符、转账失败后的回滚、含跨入口回调的重入，以及非法/重复状态转换。按需补充 token 标准及 UUPS 初始化、权限和状态保持测试。用能在回调中观察状态的 mock 验证执行顺序，不只检查最终余额。
 
-同步受影响 caller、部署脚本、错误断言、接口和文档。运行修改文件的格式检查并审阅 diff。共享会计、继承或初始化修改覆盖全部受影响套件；影响面无法限定，或用户/项目要求时运行全量。必需检查通过后，仅因新改动、失败或未解决疑点重复验证。
+同步受影响 caller、部署脚本、错误断言、接口和文档。运行修改文件的格式检查并审阅 diff，逐项核对构造/初始化参数尾下划线、Ownable 与调用者 owner、private constant/immutable、共享配置 helper，以及地址校验未加入代码长度限制。共享会计、继承或初始化修改覆盖全部受影响套件；影响面无法限定，或用户/项目要求时运行全量。必需检查通过后，仅因新改动、失败或未解决疑点重复验证。
 
 简短报告已实现行为、实际验证和剩余阻塞。无证据时不宣称执行成功或升级兼容。
