@@ -29,7 +29,8 @@ metadata:
 - `constructor` 和 `initialize` 的所有具名参数统一使用尾下划线，例如 `token_`、`receiver_`、`amount_`；不以是否与状态变量同名为条件。`owner_` 仅说明命名形式，构造和初始化入口不接收 owner 参数。
 - 权限使用 `Ownable`，代理合约使用对应的 `OwnableUpgradeable`；不主动引入 `Ownable2Step`、`Ownable2StepUpgradeable` 或 `AccessControl`。普通合约按实际依赖版本通过 `Ownable(msg.sender)` 或该版本等价机制设置 owner；代理在 `initialize` 中通过 `__Ownable_init(msg.sender)` 或该版本等价机制设置 owner。
 - owner 取执行构造或初始化时的 `msg.sender`，不使用 `tx.origin`，不额外传入 owner/initialOwner/admin 来指定 owner。部署和测试核对真实调用者；通过工厂创建时 owner 可能是工厂，不能假定总是最外层 EOA，也不能为调整 owner 偷加初始化参数。
-- 所有 `constant`、`immutable` 状态变量都使用 `private`，例如 `uint256 private constant MAX_AMOUNT = 100e18;`、`IERC20 private immutable token;`。仅在业务明确需要外部读取时提供显式 getter，不通过 `public` 声明自动生成 getter。
+- 所有 `constant`、`immutable` 状态变量都使用 `private`，例如 `uint256 private constant _MAX_AMOUNT = 100e18;`、`IERC20 private immutable _token;`。仅在业务明确需要外部读取时提供显式 getter，不通过 `public` 声明自动生成 getter。这项限制不适用于普通状态变量；代币、Router、主池等需要外部核对的普通配置使用 `public`，不为封装而一律改成 private 或额外编写同义 getter。`private` 不会隐藏链上数据，不把它当作保密措施。
+- 所有 `private` 状态变量名称都以 `_` 开头：普通变量和 immutable 使用 `_camelCase`，constant 使用 `_UPPER_SNAKE_CASE`，例如 `_token`、`_mainPair`、`_MAX_AMOUNT`。沿用已有 `__gap` 等升级保留字段，不为命名统一改动已有升级存储标识；用户明确要求的命名修正除外。
 - 在 `constructor` 或 `initialize` 中设置、且另有外部配置入口可修改的状态，必须抽成共享 `internal` 函数 `_setXxx` 或 `_updateXxx`。初始化和外部入口调用同一 helper，由 helper 统一负责入参校验、状态写入和配置事件；外部入口保留 `onlyOwner` 及适用 guard。不可在初始化中直接赋值、在 setter 中再重复一份逻辑，也不通过 `this.setXxx(...)` 绕行外部调用。仅初始化时写入且没有外部修改入口的变量可以直接赋值。
 - 地址参数的有效性 `require` 只检查 `!= address(0)`，不添加 `xxx.code.length > 0`、`extcodesize` 或 `Address.isContract` 等合约代码存在性限制。业务明确用零地址表示特殊模式时保留该语义。权限、支持资产等业务条件仍单独校验；第三方协议身份与部署核验在配置和 Fork 验证中完成，不转化为入口代码长度检查。
 
@@ -128,6 +129,6 @@ require(amount <= available, InsufficientBalance(available, amount));
 
 使用项目实际配置编译。补充并运行聚焦测试：入参错误、越权、暂停/恢复与紧急策略、流入到账前不记账、流出回调前已扣账、到账不符、转账失败后的回滚、含跨入口回调的重入，以及非法/重复状态转换。按需补充 token 标准及 UUPS 初始化、权限和状态保持测试。用能在回调中观察状态的 mock 验证执行顺序，不只检查最终余额。
 
-同步受影响 caller、部署脚本、错误断言、接口和文档。运行修改文件的格式检查并审阅 diff，逐项核对构造/初始化参数尾下划线、Ownable 与调用者 owner、private constant/immutable、共享配置 helper，以及地址校验未加入代码长度限制。共享会计、继承或初始化修改覆盖全部受影响套件；影响面无法限定，或用户/项目要求时运行全量。必需检查通过后，仅因新改动、失败或未解决疑点重复验证。
+同步受影响 caller、部署脚本、错误断言、接口和文档。运行修改文件的格式检查并审阅 diff，逐项核对构造/初始化参数尾下划线、Ownable 与调用者 owner、private constant/immutable、所有 private 状态变量前下划线、普通配置的读取需求、共享配置 helper，以及地址校验未加入代码长度限制。共享会计、继承或初始化修改覆盖全部受影响套件；影响面无法限定，或用户/项目要求时运行全量。必需检查通过后，仅因新改动、失败或未解决疑点重复验证。
 
 简短报告已实现行为、实际验证和剩余阻塞。无证据时不宣称执行成功或升级兼容。
