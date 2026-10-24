@@ -72,7 +72,7 @@ function _setReceiver(address receiver_) internal {
 | 需求 | 集成规则 |
 | --- | --- |
 | 权限 | 使用 `Ownable`，代理使用 `OwnableUpgradeable`；owner 由构造或初始化中的 `msg.sender` 确定，不接收 owner 参数。按需限制 mint、配置、暂停/恢复、资产回收和升级。不无故叠加权限体系。 |
-| 重入保护 | 对资产转移入口，以及共享暴露会计状态的其他可写入口，使用已安装的 `ReentrancyGuard` 或支持的可升级等价组件。遵守初始化和 EVM 要求。受保护的 external 函数复用 internal helper，避免相互调用导致嵌套进入重入锁。 |
+| 重入保护 | 对资产转移入口，以及共享暴露会计状态的其他可写入口，直接使用 OpenZeppelin `ReentrancyGuardTransient` 和 `nonReentrant`；普通合约和代理合约均遵循此规则，不默认改用 `ReentrancyGuard` 或其 Upgradeable 版本。确认已安装依赖提供该组件、编译配置及目标网络支持 EIP-1153 transient storage；不满足时明确报告兼容性阻塞，不静默替换组件或升级依赖。受保护的 external 函数复用 internal helper，避免相互调用导致嵌套进入重入锁。 |
 | 紧急暂停 | 使用 `Pausable` 与有权限的暂停/恢复入口。明确暂停哪些操作、是否保留紧急退出。仅继承不会自动暂停：需使用 guard 或适当的 token pause 扩展/hook。 |
 | ERC20 | 继承 `ERC20` 及必要扩展，外部代币转账使用 `SafeERC20`。保留标准 transfer、allowance、mint/burn 和 event 语义。 |
 | ERC721 | 继承 `ERC721` 及必要扩展。将 safe transfer 和 safe mint 视为回调边界，验证接收处理与所有权规则。 |
