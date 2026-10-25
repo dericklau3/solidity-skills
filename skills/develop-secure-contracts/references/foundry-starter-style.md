@@ -25,7 +25,7 @@
 - 函数按业务流程与调用关系分组：入口后紧跟专用 internal/private helper，再进入下一组业务函数；共享 helper 放在主要入口之后或所属业务组末尾，配置入口与配置 helper 相邻。遵循技能入口“按业务流程组织函数”的规则，不按可见性将内部函数统一放到文件末尾。
 - 默认复用 `src/lib/Errors.sol`，通过 `Errors.InvalidParameter()` 等命名空间引用错误。语义匹配时复用现有错误，需要新业务错误时补入该库；不为每个参数机械新增一个错误。脚本注册表已有局部错误保持局部，不为集中化改写它。
 - 入口校验使用 `require(condition, Errors.ErrorName())`。共享同一错误语义的简单入参可合并，例如地址非零与金额正数；权限、资产支持、签名等不同失败原因保持独立校验。具体合法输入由业务决定，不复制模板的限制。
-- 状态变量和普通参数采用现有 camelCase；`constructor` 和 `initialize` 的所有具名参数均使用尾下划线，如 `tokenRecipient_`、`signer_`、`amount_`，不以是否与状态同名为条件。内部 helper 沿用 `_updateTokenAllowed`、`_onlyEOA` 等前下划线。所有 private 状态变量以 `_` 开头：普通变量和 immutable 使用 `_camelCase`，constant 使用 `_UPPER_SNAKE_CASE`（例如 `_ORDER_TYPEHASH`）；已有 `__gap` 等升级保留字段沿用原名。所有 constant/immutable 状态变量均声明为 `private`，但不将该要求扩展到普通状态变量；需要外部核对的普通配置使用 `public`。
+- 状态变量和普通参数采用现有 camelCase；`constructor` 和 `initialize` 的所有具名参数均使用尾下划线，如 `tokenRecipient_`、`signer_`、`amount_`，不以是否与状态同名为条件。内部 helper 沿用 `_updateTokenAllowed`、`_onlyEOA` 等前下划线。所有 constant/immutable 状态变量均不加前导下划线：constant 使用 `UPPER_SNAKE_CASE`，immutable 使用 `camelCase`（例如 `MAX_AMOUNT`、`token`）；仅普通 private 状态变量使用 `_camelCase`，已有 `__gap` 等升级保留字段沿用原名。constant/immutable 默认声明为 `private`；由 `keccak256(...)` 计算的常量声明为 `public constant`（例如 `bytes32 public constant ORDER_TYPEHASH = keccak256("Order(...)");`），通过自动 getter 查询具体值，不再额外包装同义 getter。需要外部核对的普通配置使用 `public`。
 - 配置入口默认沿用 `updateXxx`、`UpdateXxx` 事件的命名习惯。已有 API 名称保持不变，不为风格重命名。写入状态后按项目约定发出事件。
 - 权限使用 `Ownable`（代理用 `OwnableUpgradeable`），构造/初始化不接收 owner 参数，直接以 `msg.sender` 初始化 owner；不主动引入两步所有权或角色权限体系。
 - 地址有效性 `require` 只检查非零，不添加 `code.length`、`extcodesize` 或 `isContract` 限制；零地址有明确业务语义时保留。
