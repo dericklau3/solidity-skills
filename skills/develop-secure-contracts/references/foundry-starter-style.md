@@ -22,6 +22,7 @@
 
 - 延续文件的 SPDX、pragma 和实际依赖路径，不为了模仿模板升级编译器。使用具名导入；按依赖组件、工具、项目自有库分组，保持周边顺序。
 - 多继承声明按现有样式分行。先列 `using`、常量/immutable、状态变量与事件，再组织构造、初始化和相关函数。相关 struct、modifier、内部 helper 靠近使用它们的逻辑；不要为全局统一排序移动已有状态变量。
+- 函数按业务流程与调用关系分组：入口后紧跟专用 internal/private helper，再进入下一组业务函数；共享 helper 放在主要入口之后或所属业务组末尾，配置入口与配置 helper 相邻。遵循技能入口“按业务流程组织函数”的规则，不按可见性将内部函数统一放到文件末尾。
 - 默认复用 `src/lib/Errors.sol`，通过 `Errors.InvalidParameter()` 等命名空间引用错误。语义匹配时复用现有错误，需要新业务错误时补入该库；不为每个参数机械新增一个错误。脚本注册表已有局部错误保持局部，不为集中化改写它。
 - 入口校验使用 `require(condition, Errors.ErrorName())`。共享同一错误语义的简单入参可合并，例如地址非零与金额正数；权限、资产支持、签名等不同失败原因保持独立校验。具体合法输入由业务决定，不复制模板的限制。
 - 状态变量和普通参数采用现有 camelCase；`constructor` 和 `initialize` 的所有具名参数均使用尾下划线，如 `tokenRecipient_`、`signer_`、`amount_`，不以是否与状态同名为条件。内部 helper 沿用 `_updateTokenAllowed`、`_onlyEOA` 等前下划线。所有 private 状态变量以 `_` 开头：普通变量和 immutable 使用 `_camelCase`，constant 使用 `_UPPER_SNAKE_CASE`（例如 `_ORDER_TYPEHASH`）；已有 `__gap` 等升级保留字段沿用原名。所有 constant/immutable 状态变量均声明为 `private`，但不将该要求扩展到普通状态变量；需要外部核对的普通配置使用 `public`。
