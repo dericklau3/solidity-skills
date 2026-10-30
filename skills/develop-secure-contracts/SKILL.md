@@ -96,6 +96,12 @@ UUPS 部署代理时原子完成初始化，按正确顺序对必需父级各初
 
 每个实现函数一进入就使用 `require(validCondition, CustomError(...))` 校验适用的入参前置条件，位于业务状态修改或资产转移调用之前。可在入口调用校验 helper 或使用包含这些校验的 modifier。Internal helper 在入口建立前置条件；所有可达 caller 已证明执行同一校验且使用前条件不会变化时，不重复检查。
 
+同一入口、同一阶段且使用相同错误语义的多个地址非零校验，默认用 `&&` 合并为一条 `require`，不逐个地址重复写。沿用已有错误 selector 和失败参数：例如原先每个零地址均回退 `Errors.InvalidAddress(该零地址)`，合并后使用 `Errors.InvalidAddress(address(0))`。不要为合并引入三元表达式或新错误。权限、资产互异、支持资产等不同失败原因保留独立校验；中间有外部调用或状态写入的校验不跨阶段合并。普通短条件保持一行，较长时按 formatter 换行，不强行压缩。
+
+```solidity
+require(router_ != address(0) && nvda_ != address(0) && ebtc_ != address(0), Errors.InvalidAddress(address(0)));
+```
+
 按业务规则验证地址角色、支持资产、金额、数组长度/边界、ID、期限、限额和参数间关系。不编造非法输入：例如 ERC20 合法的零额转账、合法的 token ID 零仍需允许。保留 OpenZeppelin 自带权限/guard 校验，不为统一语法重写库内部。
 
 ```solidity
