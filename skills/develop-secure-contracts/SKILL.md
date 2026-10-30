@@ -58,7 +58,7 @@ function setReceiver(address receiver_) external onlyOwner {
 }
 
 function _setReceiver(address receiver_) internal {
-    require(receiver_ != address(0), Errors.InvalidReceiver(receiver_));
+    require(receiver_ != address(0), Errors.InvalidParameter());
     address previous = receiver;
     receiver = receiver_;
     emit ReceiverUpdated(previous, receiver_);
@@ -96,21 +96,26 @@ UUPS 部署代理时原子完成初始化，按正确顺序对必需父级各初
 
 每个实现函数一进入就使用 `require(validCondition, CustomError(...))` 校验适用的入参前置条件，位于业务状态修改或资产转移调用之前。可在入口调用校验 helper 或使用包含这些校验的 modifier。Internal helper 在入口建立前置条件；所有可达 caller 已证明执行同一校验且使用前条件不会变化时，不重复检查。
 
-同一入口、同一阶段且使用相同错误语义的多个地址非零校验，默认用 `&&` 合并为一条 `require`，不逐个地址重复写。沿用已有错误 selector 和失败参数：例如原先每个零地址均回退 `Errors.InvalidAddress(该零地址)`，合并后使用 `Errors.InvalidAddress(address(0))`。不要为合并引入三元表达式或新错误。权限、资产互异、支持资产等不同失败原因保留独立校验；中间有外部调用或状态写入的校验不跨阶段合并。普通短条件保持一行，较长时按 formatter 换行，不强行压缩。
+参数合法性校验统一使用共享错误库中的无参 custom error `Errors.InvalidParameter()`（声明为 `error InvalidParameter();`，采用 Solidity 错误名首字母大写的惯例）。地址非零、金额为正、数组长度、数值范围、期限及参数间关系等入参约束，均使用该错误；不为不同参数分别定义 `InvalidAddress(address)`、`InvalidAmount(uint256)` 等错误，也不传入失败值。
+
+同一入口、同一阶段的参数检查按验证类型分组，同类条件用 `&&` 合并为一条 `require`，不同类型分别写。例如：金额正数检查放在一起，地址非零检查放在一起，时间相关检查放在一起；金额上限、余额约束等范围检查另成一组，不因为都使用 `InvalidParameter()` 就把所有条件合并。按校验含义分类，不仅按 Solidity 数据类型分类：金额和时间即使都是 `uint256`，也属于不同验证类型。
+
+条件短时保持一行，较长时交给 formatter 换行。分组和合并都须保持安全求值顺序：先验证数组边界、非零除数、算术范围，再访问或计算；存在前置依赖时按依赖顺序保留检查，不为凑齐同类条件跨状态写入或外部交互移动检查，也不改变有效输入范围。
 
 ```solidity
-require(router_ != address(0) && nvda_ != address(0) && ebtc_ != address(0), Errors.InvalidAddress(address(0)));
+require(amount > 0 && minimumOutput > 0, Errors.InvalidParameter());
+require(receiver != address(0) && token != address(0), Errors.InvalidParameter());
+require(startTime <= block.timestamp && deadline >= block.timestamp, Errors.InvalidParameter());
+require(amount <= eda.balanceOf(address(this)), Errors.InvalidParameter());
 ```
 
-按业务规则验证地址角色、支持资产、金额、数组长度/边界、ID、期限、限额和参数间关系。不编造非法输入：例如 ERC20 合法的零额转账、合法的 token ID 零仍需允许。保留 OpenZeppelin 自带权限/guard 校验，不为统一语法重写库内部。
+上述正数限制仅用于业务明确要求正数的入口；ERC20 合法的零额转账、合法的 token ID 零等仍须允许。按业务规则验证地址角色、支持资产、金额、数组长度/边界、ID、期限、限额和参数间关系，不能为统一写法删除校验。
 
-```solidity
-require(receiver != address(0), InvalidReceiver(receiver));
-require(amount > 0, InvalidAmount(amount)); // 仅适用于要求正数金额的操作。
-require(amount <= available, InsufficientBalance(available, amount));
-```
+区分入参合法性与其他失败语义：权限、暂停、业务状态转换、签名认证、重入、实际到账不足及外部调用失败，继续使用相应专用错误，不并入 `InvalidParameter()`。例如请求金额超过当前余额可作为入口参数范围约束合并；转账后实际收到数量不符合要求则保留到账错误。保留 OpenZeppelin 自带权限/guard 校验，不重写依赖内部错误。
 
-按项目错误组织方式声明或复用具体 custom error。错误参数必须低成本、无副作用：`require` 成功时也会求值。索引前先检查边界，执行可能先失败的算术前先检查条件。依赖状态的校验使用权威状态。只有转账后才能获知的条件，还需在转账后校验。
+增量修改仅统一已授权范围内的参数校验，并同步错误声明、受影响测试断言和 caller；请求范围外或明确需要兼容的旧错误保持不变。错误库中仍被其他入口使用的错误声明保留。
+
+依赖状态的校验使用权威状态，只有转账后才能获知的条件在转账后校验。专用错误如需参数，参数应低成本、无副作用，因为 `require` 成功时也会求值。
 
 ## 资金流顺序
 
@@ -146,6 +151,6 @@ require(amount <= available, InsufficientBalance(available, amount));
 
 使用项目实际配置编译。补充并运行聚焦测试：入参错误、越权、暂停/恢复与紧急策略、流入到账前不记账、流出回调前已扣账、到账不符、转账失败后的回滚、含跨入口回调的重入，以及非法/重复状态转换。按需补充 token 标准及 UUPS 初始化、权限和状态保持测试。用能在回调中观察状态的 mock 验证执行顺序，不只检查最终余额。
 
-同步受影响 caller、部署脚本、错误断言、接口和文档。运行修改文件的格式检查并审阅 diff，逐项核对构造/初始化参数尾下划线、Ownable 与调用者 owner、constant/immutable 无前导下划线及可见性、keccak256 常量为 public、普通 private 状态变量前下划线、普通配置的读取需求、共享配置 helper、单次调用的简单 helper 是否已内联、业务入口与保留的相关 helper 是否就近成组，以及地址校验未加入代码长度限制。共享会计、继承或初始化修改覆盖全部受影响套件；影响面无法限定，或用户/项目要求时运行全量。必需检查通过后，仅因新改动、失败或未解决疑点重复验证。
+同步受影响 caller、部署脚本、错误断言、接口和文档。运行修改文件的格式检查并审阅 diff，逐项核对构造/初始化参数尾下划线、Ownable 与调用者 owner、constant/immutable 无前导下划线及可见性、keccak256 常量为 public、普通 private 状态变量前下划线、普通配置的读取需求、共享配置 helper、单次调用的简单 helper 是否已内联、业务入口与保留的相关 helper 是否就近成组，以及参数校验是否统一使用无参 `Errors.InvalidParameter()`、同阶段同类条件是否合并、不同类是否分开且保留安全求值顺序、地址校验是否未加入代码长度限制。共享会计、继承或初始化修改覆盖全部受影响套件；影响面无法限定，或用户/项目要求时运行全量。必需检查通过后，仅因新改动、失败或未解决疑点重复验证。
 
 简短报告已实现行为、实际验证和剩余阻塞。无证据时不宣称执行成功或升级兼容。

@@ -61,6 +61,7 @@ skills/
 - 默认沿用 foundry-starter 的 Wallet 编码风格及四层部署分工，开发前读取当前项目模板和[编码与部署约定](skills/develop-secure-contracts/references/foundry-starter-style.md)
 - 开发集成第三方链上协议时使用目标网络真实部署，核对链、版本及地址；部署脚本连接真实协议，不部署 mock 或仿制协议替代
 - 函数入口使用 `require` + custom error 校验适用入参前置条件，不强制固定编译器版本，但必须确认所需语法可编译
+- 参数合法性统一使用无参 `Errors.InvalidParameter()`；金额正数、地址非零、时间、范围等按同类合并 `require`，不同类分开，权限、业务状态及到账检查保留专用错误
 - 重入保护直接使用 `ReentrancyGuardTransient`，普通合约与代理合约一致；核对依赖、编译配置和目标链 EIP-1153 支持，不静默换用其他重入锁
 - 资金流入：先校验，启用重入保护，转入并验证到账，最后更新业务状态
 - 资金流出：先校验并更新业务状态，再转出资产；失败整体回退
