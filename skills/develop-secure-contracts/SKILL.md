@@ -33,6 +33,30 @@ metadata:
 - 例如 FomoPool 的 `depositRewards` 调用 `_rolloverRound`，应将 `_rolloverRound` 放在 `depositRewards` 后面，再放 `updateRewardRatios` 与 `_setRewardRatios` 等配置组；`publishResults` 继续复用这一份 `_rolloverRound`。不要让无关配置函数隔开入金入口与轮次结转实现。
 - 这项约定用于新增代码及本次修改涉及的函数组，不自动扩大为整份合约重排。调整位置时连同 NatSpec 和解释注释一起移动，保持函数逻辑、可见性、modifier、ABI、继承及状态变量布局不变。
 
+## 领域语义与意图清晰的命名
+
+新增或本次授权修改的标识符采用 **Domain-Oriented + Intent-Revealing + Concise Naming**：先确定业务概念，再选择准确、简洁的英文名称。专业程度来自语义准确和领域一致，不来自直译需求、堆叠单词、冷僻术语或一味缩短。
+
+- 命名前先辨明业务角色、资产、会计含义、生命周期状态和单位。优先采用符合实际模型的成熟术语，如 `principal`、`shares`、`allocation`、`reserve`、`accruedRewards`、`vestedAmount`；没有对应领域概念时，使用清晰的普通英文，不强套 DeFi 术语。
+- 利用合约、struct、mapping 和函数上下文去除重复信息。例如 `mapping(address account => Position) positions` 中的 `Position.principal`，不重复写成 `userInvestAmount`。同一上下文存在多种本金、资产或奖励时保留必要限定，如 `stakedPrincipal`、`borrowedPrincipal`、`edaAmount`、`nvdaAmount`；局部上下文不足时不用裸 `amount`、`value`、`data` 或含糊缩写。
+- 同一概念始终使用同一词根，不在 `reward` / `bonus`、`account` / `user` 等词之间随意切换；不同概念使用不同名称。`bonus`、`share`、`reserve` 等词只有在业务含义相符时采用，例如 `shares` 表示份额数量，不能替代底层资产数量，`reserve` 不能泛指所有余额。
+- 显式区分状态：`accruedRewards` 表示按规则累计的奖励，是否包含已领取部分须由会计模型和 NatSpec 说明；`claimedRewards` 表示已领取累计值，`claimableRewards` 表示当前可领取值。`pendingRewards` 必须说明等待结算、确认还是归属，不能与 `claimableRewards` 混用；`vestedAmount` 只用于实际归属机制。可提现本金通常使用 `withdrawablePrincipal`，不因追求术语感改成 `claimable`。
+- 保留影响正确使用的量纲：基点比例使用 `Bps` / `_BPS`，如 `rewardBps`、`BONUS_POOL_BPS`，不要用含糊的 `rate` / `ratio` 掩盖分母；每秒速率可用 `rewardRatePerSecond`，时间戳可用 `unlockAt`，时长可用 `lockDuration` 并在 NatSpec 标明秒。资产数量与份额区分为 `assets` / `shares`；需要区分请求量和实收量时使用 `requestedAssets`、`receivedAssets` 等名称。金额单位、精度和比例分母在 NatSpec 中说明。
+- 变量使用名词或状态短语，布尔值使用明确谓词，如 `isActive`、`hasClaimed`；函数使用业务动作，如 `claimRewards`、`withdrawPrincipal`、`allocateRewards`。不把完整中文业务规则逐字翻译成名称；参与者筛选、分配条件和计算公式放进实现及 NatSpec。决定业务含义的限定词仍须保留。
+
+以下示例按语义选用，不是全局替换表；大小写和下划线继续遵守下一节：
+
+| 需求直译式名称 | 领域名称示例 | 使用前提 |
+| --- | --- | --- |
+| `LUCKY_USER_REWARD_RATE` | `BONUS_POOL_BPS` | 表示分配给 bonus 奖励池的基点比例，而非收益率 |
+| `ALL_PARTICIPANTS_REWARD_RATE` | `SHARE_POOL_BPS` | 表示按份额共享的奖励池分配比例，不是份额数量 |
+| `userInvestAmount` | `principal` | 表示投入本金，所在上下文能明确资产与归属 |
+| `userTotalReceivedReward` | `claimedRewards` | 表示已领取累计奖励，不是累计产生奖励 |
+| `userCanWithdrawAmount` | `withdrawablePrincipal` / `claimableRewards` | 分别对应可提现本金和可领取奖励，按实际权益选择 |
+| `lastInvestUser` | `lastEntrant` | 业务确实将该地址定义为最后入场者；若记录的是最后存款人则用 `lastDepositor` |
+
+这些规则用于新代码及已授权的修改范围，不自动触发既有合约批量重命名。已有 public getter、函数/event 名称、struct 成员及命名返回值可能被 ABI 或源码消费者依赖；EIP-712 字段名及类型字符串参与签名摘要，不能作为纯风格修改。已有代理的存储字段或继承成员重命名，需核对升级工具的布局校验与迁移约定，不能仅凭槽位未变认定兼容。确需修改时识别并同步受影响依赖，遵守前述授权与兼容性边界。
+
 ## 命名、权限与配置写入约定
 
 以下是新增合约和本次授权修改代码的默认约定；参考项目中的旧写法不覆盖这些规则。已有 ABI、权限或存储兼容性仍按前述增量开发边界处理，不为统一风格改写范围外代码。
@@ -152,5 +176,7 @@ require(amount <= eda.balanceOf(address(this)), Errors.InvalidParameter());
 使用项目实际配置编译。补充并运行聚焦测试：入参错误、越权、暂停/恢复与紧急策略、流入到账前不记账、流出回调前已扣账、到账不符、转账失败后的回滚、含跨入口回调的重入，以及非法/重复状态转换。按需补充 token 标准及 UUPS 初始化、权限和状态保持测试。用能在回调中观察状态的 mock 验证执行顺序，不只检查最终余额。
 
 同步受影响 caller、部署脚本、错误断言、接口和文档。运行修改文件的格式检查并审阅 diff，逐项核对构造/初始化参数尾下划线、Ownable 与调用者 owner、constant/immutable 无前导下划线及可见性、keccak256 常量为 public、普通 private 状态变量前下划线、普通配置的读取需求、共享配置 helper、单次调用的简单 helper 是否已内联、业务入口与保留的相关 helper 是否就近成组，以及参数校验是否统一使用无参 `Errors.InvalidParameter()`、同阶段同类条件是否合并、不同类是否分开且保留安全求值顺序、地址校验是否未加入代码长度限制。共享会计、继承或初始化修改覆盖全部受影响套件；影响面无法限定，或用户/项目要求时运行全量。必需检查通过后，仅因新改动、失败或未解决疑点重复验证。
+
+交付前另做命名审阅：名称是否体现业务角色，是否存在需求直译或上下文重复，资产/份额、累计/已领/可领、比例/速率与单位是否可区分，同一概念是否使用一致术语，是否为了缩短而丢失必要限定，以及是否误改既有 ABI、签名字段或升级存储标识。
 
 简短报告已实现行为、实际验证和剩余阻塞。无证据时不宣称执行成功或升级兼容。
