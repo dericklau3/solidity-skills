@@ -8,175 +8,97 @@ metadata:
 
 # 使用 OpenZeppelin 开发合约
 
-## 执行约定
+## 执行与兼容性
 
-使用适用的 OpenZeppelin 组件实现用户要求的合约。遵守本技能的校验、资金流、状态转换和验证规则，完成已授权实现，不停留在建议。用户明确指令及更高优先级指令优先。受阻步骤如实报告，继续独立工作。
+完成用户授权的实现；用户指令优先。编辑前读取项目配置、目标代码、相关测试/脚本及实际安装依赖。保留无关改动，不为统一风格改写范围外代码。
 
-编辑前读取项目配置、目标代码、测试、部署脚本和实际安装依赖，保留无关改动。使用实际编译器/backend 确认支持 `require(condition, CustomError(...))`，不设固定编译器版本、不静默升级，也不擅自改成 revert string 或 `if/revert`。存在不兼容时，先解决再实现依赖该语法的部分。
+确认实际编译器/backend 支持 `require(condition, CustomError(...))`；不静默升级或改成 revert string、`if/revert`。条件不足时报告具体阻塞，继续独立工作。
 
-增量开发已有系统时，保留请求范围外的函数/event ABI、错误约定、权限、资产语义和存储兼容性。不为统一风格改写已有入口。完成请求确实需要改变这些契约时，先识别受影响的 caller、集成和部署状态，仅在已有授权范围内实施并同步相关依赖；需要扩大范围的部分说明具体原因，继续独立工作。
+保持已有函数/event ABI、错误约定、权限、资产语义及升级存储兼容性；授权变更时同步受影响依赖。EIP-712 字段名和类型字符串参与签名摘要；存储标识重命名也需核对升级工具，不能仅凭槽位未变认定兼容。
 
-## 沿用 foundry-starter 编码风格
+## 项目风格与错误库
 
-默认按用户的 foundry-starter 风格开发。编写或修改 `src/`、`script/` 前，读取[编码与部署约定](references/foundry-starter-style.md)，并对照当前项目的 Wallet、Errors 和部署脚本等价文件。先确认导入、命名、错误组织、函数结构及部署职责，再实现业务；不能只满足安全规则却重新设计项目组织。
+默认沿用 foundry-starter 风格；编写 `src/`、`script/` 前读取[编码与部署约定](references/foundry-starter-style.md)，对照当前项目等价文件。模板业务限制、地址和逻辑不得机械复制，旧写法不覆盖本技能的新增代码约定。
 
-源码优先复用共享 `Errors` 和现有命名习惯；部署沿用外层入口控制广播、`ContractCollection` 接收明确参数并完成部署、`BaseDeployScript` 管理配置、`ContractRegistry` 保存地址的分工。项目明确约定和用户指令优先；模板中的业务限制、地址、依赖版本与逻辑缺陷不得机械复制。
+`src/lib/Errors.sol` 仅保留 `src` 合约实际使用的 error。
 
-## 按业务流程组织函数
+## 函数组织
 
-先判断是否需要拆分，再安排函数位置。仅在一个地方调用、且只有一两条简单语句的 `internal/private` helper，直接内联到调用方；例如“读取 storage 引用 + 一条 `require`”不单独封装。按实际语句和复杂度判断，不把 `require` 的换行或注释行数当作拆分依据，也不为了命名、加注释或让入口显得短而增加调用层级。多个调用点复用的逻辑可以抽取；单次调用但包含复杂算法或独立完整业务阶段的逻辑，可按可读性保留 helper。初始化与外部配置入口共用的 `_setXxx` / `_updateXxx` 仍按下文要求保留。
+- 仅调用一次且只有一两条简单语句的 internal/private helper 直接内联，按实际复杂度判断，不按换行或注释行数判断。复用逻辑、复杂算法或完整业务阶段可保留 helper；初始化与配置入口共用的 helper 必须保留。
+- 按“业务入口 → 专用 helper → 下一组业务函数”组织，配置入口与配置 helper 相邻，多层 helper 按调用链排列；不按可见性把内部函数统一堆在末尾。
+- 共享 helper 只保留一份，放在主要入口之后或所属业务组末尾。移动函数时连同注释移动，保持逻辑、modifier、继承和存储布局。
 
-函数按业务职责和调用关系就近组织，让读者从入口向下连续读到实现细节。新增或修改函数时采用“业务入口 → 该入口的 internal/private helper → 下一组业务函数”的顺序；多层专用 helper 按调用链向下排列。函数可见性不作为全文件分组依据，不把所有 external/public 入口放在前面、所有 internal/private helper 统一堆在末尾。
+## 命名、权限与配置
 
-- 确有必要保留、仅供一个入口使用的 helper 紧跟该入口，避免在两者之间插入无关配置、查询或其他业务函数。配置入口及其 `_setXxx` / `_updateXxx` 同样成组。
-- 多个入口共用的 helper 只保留一份，放在主要业务入口之后或同一业务组的末尾；初始化也调用的配置 helper 仍放在对应配置入口附近。跨业务组复用时，以主要职责确定归属，不为满足相邻要求复制逻辑。
-- 例如 FomoPool 的 `depositRewards` 调用 `_rolloverRound`，应将 `_rolloverRound` 放在 `depositRewards` 后面，再放 `updateRewardRatios` 与 `_setRewardRatios` 等配置组；`publishResults` 继续复用这一份 `_rolloverRound`。不要让无关配置函数隔开入金入口与轮次结转实现。
-- 这项约定用于新增代码及本次修改涉及的函数组，不自动扩大为整份合约重排。调整位置时连同 NatSpec 和解释注释一起移动，保持函数逻辑、可见性、modifier、ABI、继承及状态变量布局不变。
+- 名称体现准确的业务概念，简洁、利用上下文去重，同一概念使用一致术语；保留区分资产、归属和状态的必要限定，不直译整条业务规则、不强套术语或使用含糊缩写。变量用名词/状态短语，布尔值用谓词，函数用业务动作。
+- 区分本金与奖励、资产与份额、请求量与实收量、累计/已领/可领；`pending` 说明等待何种状态，`vested` 仅用于归属机制。基点用 `Bps` / `_BPS`，区分比例、速率、时间戳和时长；NatSpec 说明单位、精度、分母及重要限制。
+- 普通变量和参数用 camelCase；`constructor`、`initialize` 的所有具名参数统一加尾下划线。internal/private helper 用前下划线。
+- constant 用 `UPPER_SNAKE_CASE`，immutable 用 camelCase，两者均不加前下划线、默认 private；`keccak256(...)` 常量用 public constant 并直接通过 getter 暴露。其他 private constant/immutable 仅在业务需要时提供显式 getter。仅普通 private 状态变量用 `_camelCase`；需要外部核对的普通配置用 public，保留已有升级保留字段。
+- 权限用 `Ownable`，代理用 `OwnableUpgradeable`；不主动引入两步所有权或 AccessControl。按安装版本通过 `Ownable(msg.sender)` / `__Ownable_init(msg.sender)` 设置 owner，不接收 owner/admin 参数，不用 `tx.origin`；工厂部署须核对真实调用者。
+- 构造/初始化与外部配置入口写入同一可变配置时，共用 internal `_setXxx` / `_updateXxx`，集中校验、赋值和事件；权限及适用 guard 留在外部入口，不通过 `this` 调用 setter。仅初始化写入的配置可直接赋值。
+- 地址有效性只检查非零，不加 `code.length`、`extcodesize`、`isContract` 限制；保留零地址的明确业务语义，权限、支持资产及协议身份另行核对。
 
-## 领域语义与意图清晰的命名
+## 第三方协议
 
-新增或本次授权修改的标识符采用 **Domain-Oriented + Intent-Revealing + Concise Naming**：先确定业务概念，再选择准确、简洁的英文名称。专业程度来自语义准确和领域一致，不来自直译需求、堆叠单词、冷僻术语或一味缩短。
+- 集成目标链真实部署的协议，核对 chain ID、版本、官方地址及市场/池的链上配置；使用匹配接口或官方依赖。adapter、策略和回调必须调用真实协议，不以本地仿制品替代。
+- 协议地址和市场参数纳入现有链配置；需要新池/头寸时通过真实协议入口创建。
+- 在目标网络固定区块 Fork 上验证真实调用，遵循 `foundry-test`；mock 通过不能替代集成验证，Fork 通过不代表已广播。
+- 缺少协议部署、RPC、历史状态或配置时报告缺口，不静默换链、换版本。OpenZeppelin 等源码组件仍直接导入或继承。
 
-- 命名前先辨明业务角色、资产、会计含义、生命周期状态和单位。优先采用符合实际模型的成熟术语，如 `principal`、`shares`、`allocation`、`reserve`、`accruedRewards`、`vestedAmount`；没有对应领域概念时，使用清晰的普通英文，不强套 DeFi 术语。
-- 利用合约、struct、mapping 和函数上下文去除重复信息。例如 `mapping(address account => Position) positions` 中的 `Position.principal`，不重复写成 `userInvestAmount`。同一上下文存在多种本金、资产或奖励时保留必要限定，如 `stakedPrincipal`、`borrowedPrincipal`、`edaAmount`、`nvdaAmount`；局部上下文不足时不用裸 `amount`、`value`、`data` 或含糊缩写。
-- 同一概念始终使用同一词根，不在 `reward` / `bonus`、`account` / `user` 等词之间随意切换；不同概念使用不同名称。`bonus`、`share`、`reserve` 等词只有在业务含义相符时采用，例如 `shares` 表示份额数量，不能替代底层资产数量，`reserve` 不能泛指所有余额。
-- 显式区分状态：`accruedRewards` 表示按规则累计的奖励，是否包含已领取部分须由会计模型和 NatSpec 说明；`claimedRewards` 表示已领取累计值，`claimableRewards` 表示当前可领取值。`pendingRewards` 必须说明等待结算、确认还是归属，不能与 `claimableRewards` 混用；`vestedAmount` 只用于实际归属机制。可提现本金通常使用 `withdrawablePrincipal`，不因追求术语感改成 `claimable`。
-- 保留影响正确使用的量纲：基点比例使用 `Bps` / `_BPS`，如 `rewardBps`、`BONUS_POOL_BPS`，不要用含糊的 `rate` / `ratio` 掩盖分母；每秒速率可用 `rewardRatePerSecond`，时间戳可用 `unlockAt`，时长可用 `lockDuration` 并在 NatSpec 标明秒。资产数量与份额区分为 `assets` / `shares`；需要区分请求量和实收量时使用 `requestedAssets`、`receivedAssets` 等名称。金额单位、精度和比例分母在 NatSpec 中说明。
-- 变量使用名词或状态短语，布尔值使用明确谓词，如 `isActive`、`hasClaimed`；函数使用业务动作，如 `claimRewards`、`withdrawPrincipal`、`allocateRewards`。不把完整中文业务规则逐字翻译成名称；参与者筛选、分配条件和计算公式放进实现及 NatSpec。决定业务含义的限定词仍须保留。
+## OpenZeppelin 组件
 
-以下示例按语义选用，不是全局替换表；大小写和下划线继续遵守下一节：
+按实际需求选用安装版本的组件，核对 API、hook、构造和初始化方式，不复制源码或机械叠加组件。
 
-| 需求直译式名称 | 领域名称示例 | 使用前提 |
-| --- | --- | --- |
-| `LUCKY_USER_REWARD_RATE` | `BONUS_POOL_BPS` | 表示分配给 bonus 奖励池的基点比例，而非收益率 |
-| `ALL_PARTICIPANTS_REWARD_RATE` | `SHARE_POOL_BPS` | 表示按份额共享的奖励池分配比例，不是份额数量 |
-| `userInvestAmount` | `principal` | 表示投入本金，所在上下文能明确资产与归属 |
-| `userTotalReceivedReward` | `claimedRewards` | 表示已领取累计奖励，不是累计产生奖励 |
-| `userCanWithdrawAmount` | `withdrawablePrincipal` / `claimableRewards` | 分别对应可提现本金和可领取奖励，按实际权益选择 |
-| `lastInvestUser` | `lastEntrant` | 业务确实将该地址定义为最后入场者；若记录的是最后存款人则用 `lastDepositor` |
+- 重入：资产转移入口及共享暴露会计状态的其他可写入口，普通/代理合约均用 `ReentrancyGuardTransient` 和 `nonReentrant`。确认依赖、编译配置及目标链支持 EIP-1153；不静默替换或升级依赖。受保护入口复用 internal helper，避免嵌套进入锁。
+- 暂停：需要时用 `Pausable` 和有权限的暂停/恢复入口，明确暂停范围与紧急退出，并实际应用 guard/hook。
+- ERC20：继承标准组件及必要扩展，外部代币用 `SafeERC20`，保留标准零额转账、allowance、mint/burn 和事件语义。
+- ERC721：继承标准组件及必要扩展，将 safe transfer/mint 作为外部回调边界。
+- UUPS：使用安装版本的 UUPS 模式与 `ERC1967Proxy`，通过 `_authorizeUpgrade` 限权；代理部署原子初始化，必需父级按顺序各初始化一次，实现合约禁用 initializer。Reinitializer 仅用于明确迁移。
 
-这些规则用于新代码及已授权的修改范围，不自动触发既有合约批量重命名。已有 public getter、函数/event 名称、struct 成员及命名返回值可能被 ABI 或源码消费者依赖；EIP-712 字段名及类型字符串参与签名摘要，不能作为纯风格修改。已有代理的存储字段或继承成员重命名，需核对升级工具的布局校验与迁移约定，不能仅凭槽位未变认定兼容。确需修改时识别并同步受影响依赖，遵守前述授权与兼容性边界。
+供已有代理使用的新实现即使未部署也属于升级。验证继承、storage、namespaced storage 和升级授权；宣称布局兼容前对照已部署基线或运行升级验证器。
 
-## 命名、权限与配置写入约定
+## 入口校验与错误
 
-以下是新增合约和本次授权修改代码的默认约定；参考项目中的旧写法不覆盖这些规则。已有 ABI、权限或存储兼容性仍按前述增量开发边界处理，不为统一风格改写范围外代码。
+每个函数在入口用 `require(condition, CustomError(...))` 建立适用前置条件，位于业务写入和资产交互之前；可通过 modifier/helper 执行。所有可达 caller 已保证且使用前不会失效的条件不重复检查。
 
-- `constructor` 和 `initialize` 的所有具名参数统一使用尾下划线，例如 `token_`、`receiver_`、`amount_`；不以是否与状态变量同名为条件。`owner_` 仅说明命名形式，构造和初始化入口不接收 owner 参数。
-- 权限使用 `Ownable`，代理合约使用对应的 `OwnableUpgradeable`；不主动引入 `Ownable2Step`、`Ownable2StepUpgradeable` 或 `AccessControl`。普通合约按实际依赖版本通过 `Ownable(msg.sender)` 或该版本等价机制设置 owner；代理在 `initialize` 中通过 `__Ownable_init(msg.sender)` 或该版本等价机制设置 owner。
-- owner 取执行构造或初始化时的 `msg.sender`，不使用 `tx.origin`，不额外传入 owner/initialOwner/admin 来指定 owner。部署和测试核对真实调用者；通过工厂创建时 owner 可能是工厂，不能假定总是最外层 EOA，也不能为调整 owner 偷加初始化参数。
-- `constant`、`immutable` 状态变量默认使用 `private`；由 `keccak256(...)` 计算的常量使用 `public constant`，直接通过自动 getter 暴露具体哈希值，例如 `bytes32 public constant RESULT_SUBMITTER_ROLE = keccak256("RESULT_SUBMITTER_ROLE");`，不再用 private 常量加同义显式 getter 绕一层。其他 private constant/immutable 仅在业务明确需要外部读取时提供显式 getter。这项限制不适用于普通状态变量；代币、Router、主池等需要外部核对的普通配置使用 `public`，不为封装而一律改成 private 或额外编写同义 getter。`private` 不会隐藏链上数据，不把它当作保密措施。
-- 所有 `constant`、`immutable` 状态变量名称均不加前导下划线，无论可见性如何；constant 使用 `UPPER_SNAKE_CASE`，immutable 使用 `camelCase`，例如 `uint256 private constant MAX_AMOUNT = 100e18;`、`IERC20 private immutable token;`。仅普通 `private` 状态变量使用 `_camelCase`，例如 `_token`、`_mainPair`。沿用已有 `__gap` 等升级保留字段，不为命名统一改动已有升级存储标识；用户明确要求的命名修正除外。
-- 在 `constructor` 或 `initialize` 中设置、且另有外部配置入口可修改的状态，必须抽成共享 `internal` 函数 `_setXxx` 或 `_updateXxx`。初始化和外部入口调用同一 helper，由 helper 统一负责入参校验、状态写入和配置事件；外部入口保留 `onlyOwner` 及适用 guard。不可在初始化中直接赋值、在 setter 中再重复一份逻辑，也不通过 `this.setXxx(...)` 绕行外部调用。仅初始化时写入且没有外部修改入口的变量可以直接赋值。
-- 地址参数的有效性 `require` 只检查 `!= address(0)`，不添加 `xxx.code.length > 0`、`extcodesize` 或 `Address.isContract` 等合约代码存在性限制。业务明确用零地址表示特殊模式时保留该语义。权限、支持资产等业务条件仍单独校验；第三方协议身份与部署核验在配置和 Fork 验证中完成，不转化为入口代码长度检查。
+入参合法性统一使用无参 `Errors.InvalidParameter()`，不按参数分别定义错误或传入失败值。权限、暂停、业务状态、签名、重入、实际到账及外部调用失败保留专用错误和依赖错误。
 
-共享配置写入示例（片段，沿用项目的 `Errors` 和事件定义）：
-
-```solidity
-function initialize(address receiver_) external initializer {
-    __Ownable_init(msg.sender);
-    _setReceiver(receiver_);
-}
-
-function setReceiver(address receiver_) external onlyOwner {
-    _setReceiver(receiver_);
-}
-
-function _setReceiver(address receiver_) internal {
-    require(receiver_ != address(0), Errors.InvalidParameter());
-    address previous = receiver;
-    receiver = receiver_;
-    emit ReceiverUpdated(previous, receiver_);
-}
-```
-
-## 第三方协议使用目标网络真实部署
-
-项目集成第三方链上协议时，必须调用目标网络的真实协议部署，包括但不限于 Uniswap、PancakeSwap、Aave。该要求适用于所有实际集成的第三方协议，不限于列举名称；不要自行实现简化版或部署本地仿制协议来替代。
-
-- 实现前确认目标 chain ID、协议版本、官方部署地址及项目使用的具体市场/池。核对官方部署资料、项目配置和链上代码/关键配置，不能仅凭地址非零或存在代码就认定是正确协议，也不能混用不同链或版本的组件。
-- 使用匹配实际部署版本的接口或官方依赖编写调用。可编写项目所需的 adapter、策略和回调合约，但其底层必须调用真实协议；不得在 adapter 内用自建逻辑伪造协议结果。
-- 协议地址与市场参数沿用 `BaseDeployScript` 的链配置组织方式。部署脚本连接现有协议，不为方便部署替身 Router、Factory、Pool 或借贷市场。业务需要新池/头寸时，通过目标链真实协议提供的入口创建。
-- 集成验证必须在目标网络固定区块 Fork 上执行真实调用，遵循 `foundry-test` 的真实协议要求。不得用 mock 通过作为交付依据；本地 Fork 验证不代表已广播真实交易。
-- 目标链没有所需协议版本，或地址、RPC、历史状态和配置无法核实时，明确报告缺口，继续独立工作；不静默换链、换版本或改成本地仿制协议。
-
-该规则针对第三方链上服务的集成；OpenZeppelin 等源码组件仍按实际安装版本导入或继承，不要求把源码库改成外部协议调用。
-
-## 使用 OpenZeppelin 组件
-
-按请求的行为选用组件，不为每个合约机械添加全部组件。导入实际安装源码，不复制源码或重复实现已有基础能力。根据该版本确认路径、API、hook、constructor 和 initializer。
-
-| 需求 | 集成规则 |
-| --- | --- |
-| 权限 | 使用 `Ownable`，代理使用 `OwnableUpgradeable`；owner 由构造或初始化中的 `msg.sender` 确定，不接收 owner 参数。按需限制 mint、配置、暂停/恢复、资产回收和升级。不无故叠加权限体系。 |
-| 重入保护 | 对资产转移入口，以及共享暴露会计状态的其他可写入口，直接使用 OpenZeppelin `ReentrancyGuardTransient` 和 `nonReentrant`；普通合约和代理合约均遵循此规则，不默认改用 `ReentrancyGuard` 或其 Upgradeable 版本。确认已安装依赖提供该组件、编译配置及目标网络支持 EIP-1153 transient storage；不满足时明确报告兼容性阻塞，不静默替换组件或升级依赖。受保护的 external 函数复用 internal helper，避免相互调用导致嵌套进入重入锁。 |
-| 紧急暂停 | 使用 `Pausable` 与有权限的暂停/恢复入口。明确暂停哪些操作、是否保留紧急退出。仅继承不会自动暂停：需使用 guard 或适当的 token pause 扩展/hook。 |
-| ERC20 | 继承 `ERC20` 及必要扩展，外部代币转账使用 `SafeERC20`。保留标准 transfer、allowance、mint/burn 和 event 语义。 |
-| ERC721 | 继承 `ERC721` 及必要扩展。将 safe transfer 和 safe mint 视为回调边界，验证接收处理与所有权规则。 |
-| UUPS | 使用已安装版本的 UUPS 实现模式与 `ERC1967Proxy`，需要时选用支持升级的有状态组件。通过 `_authorizeUpgrade` 限定升级权限。 |
-
-UUPS 部署代理时原子完成初始化，按正确顺序对必需父级各初始化一次，并禁用实现合约的 initializer。Reinitializer 仅用于明确的迁移。保持已有代理 storage、继承、namespaced storage 和升级授权。供已有代理使用的新实现，即使尚未部署也属于升级。宣称布局兼容前，对照已部署基线或运行项目升级验证器。
-
-## 函数入口校验
-
-每个实现函数一进入就使用 `require(validCondition, CustomError(...))` 校验适用的入参前置条件，位于业务状态修改或资产转移调用之前。可在入口调用校验 helper 或使用包含这些校验的 modifier。Internal helper 在入口建立前置条件；所有可达 caller 已证明执行同一校验且使用前条件不会变化时，不重复检查。
-
-参数合法性校验统一使用共享错误库中的无参 custom error `Errors.InvalidParameter()`（声明为 `error InvalidParameter();`，采用 Solidity 错误名首字母大写的惯例）。地址非零、金额为正、数组长度、数值范围、期限及参数间关系等入参约束，均使用该错误；不为不同参数分别定义 `InvalidAddress(address)`、`InvalidAmount(uint256)` 等错误，也不传入失败值。
-
-同一入口、同一阶段的参数检查按验证类型分组，同类条件用 `&&` 合并为一条 `require`，不同类型分别写。例如：金额正数检查放在一起，地址非零检查放在一起，时间相关检查放在一起；金额上限、余额约束等范围检查另成一组，不因为都使用 `InvalidParameter()` 就把所有条件合并。按校验含义分类，不仅按 Solidity 数据类型分类：金额和时间即使都是 `uint256`，也属于不同验证类型。
-
-条件短时保持一行，较长时交给 formatter 换行。分组和合并都须保持安全求值顺序：先验证数组边界、非零除数、算术范围，再访问或计算；存在前置依赖时按依赖顺序保留检查，不为凑齐同类条件跨状态写入或外部交互移动检查，也不改变有效输入范围。
+同一入口、同一阶段按校验含义分组：金额正数、地址非零、时间、金额上限/余额等分别成组；同类用 `&&` 合并，不同类分开，即使 Solidity 类型相同。保持数组边界、非零除数和算术范围的安全求值顺序，不跨状态写入或外部交互合并。
 
 ```solidity
 require(amount > 0 && minimumOutput > 0, Errors.InvalidParameter());
 require(receiver != address(0) && token != address(0), Errors.InvalidParameter());
-require(startTime <= block.timestamp && deadline >= block.timestamp, Errors.InvalidParameter());
-require(amount <= eda.balanceOf(address(this)), Errors.InvalidParameter());
 ```
 
-上述正数限制仅用于业务明确要求正数的入口；ERC20 合法的零额转账、合法的 token ID 零等仍须允许。按业务规则验证地址角色、支持资产、金额、数组长度/边界、ID、期限、限额和参数间关系，不能为统一写法删除校验。
-
-区分入参合法性与其他失败语义：权限、暂停、业务状态转换、签名认证、重入、实际到账不足及外部调用失败，继续使用相应专用错误，不并入 `InvalidParameter()`。例如请求金额超过当前余额可作为入口参数范围约束合并；转账后实际收到数量不符合要求则保留到账错误。保留 OpenZeppelin 自带权限/guard 校验，不重写依赖内部错误。
-
-增量修改仅统一已授权范围内的参数校验，并同步错误声明、受影响测试断言和 caller；请求范围外或明确需要兼容的旧错误保持不变。错误库中仍被其他入口使用的错误声明保留。
-
-依赖状态的校验使用权威状态，只有转账后才能获知的条件在转账后校验。专用错误如需参数，参数应低成本、无副作用，因为 `require` 成功时也会求值。
+有效输入由业务决定，保留合法零额、token ID 零等情况。依赖状态使用权威值，只有交互后可知的条件在交互后检查。错误参数须低成本、无副作用，因为 `require` 成功时也会求值。无合法后续路径可 `revert CustomError(...)`，`assert` 仅用于内部不变量。
 
 ## 资金流顺序
 
-区分业务会计状态、重入锁和必要的最小回调认证上下文。外部交互前必须进入重入保护；写入保护状态不属于提前给存款记账。
+外部交互前进入重入保护；重入锁和必要的最小回调认证状态不属于业务入账。不得向回调或敏感 view 暴露可被利用的资产/会计中间快照。
 
-### 资金流入：校验 → 收到资产 → 验证到账 → 修改业务状态
+### 流入：校验 → 收到资产 → 验证到账 → 修改业务状态
 
-- 先校验入参、权限、暂停状态及合法状态转换。
-- 转入资产前启用重入保护。ERC20 使用 `safeTransferFrom`；ERC721 使用预定的安全托管转账。到账成功前不得增加余额、份额、存款或奖励。
-- 明确采用足额到账还是支持 fee-on-transfer。足额托管需确认余额增量等于请求数量，不一致立即回退。明确支持转账税时，按实际到账量记账并检查适用的最小到账要求。不得按未经验证的请求数量记账。
-- ERC721 托管需认证预期 token 合约、operator/from/token ID 和回调上下文，转账后确认所有权。必需的接收回调仅确认预期转账，不提前计入存款、不开放其他业务入口；非预期或重复回调立即回退。若给必需回调添加 `nonReentrant` 会阻止受保护的存款完成，则改用回调认证并禁止业务状态修改。
-- 原生资产 payable 入口在函数体执行前已由 EVM 收到 `msg.value`；先验证 `msg.value` 再更新会计，无需再次转入。直接捐赠或强制转入的余额不得自动计入用户资产。
-- 验证到账后再更新所有相关会计并发出成功事件。不得让回调或依赖 view 的外部组件使用资产与会计不一致的快照；保护敏感读取，或避免向集成方暴露该中间状态。
+- 先校验参数、权限、暂停及合法状态；ERC20 用 `safeTransferFrom`。到账验证前不增加余额、份额、存款或奖励。
+- 足额到账要求余额增量等于请求量；明确支持转账税时按实收量记账并检查最低到账要求，不按未经验证的请求量记账。
+- ERC721 认证预期 token、operator/from/token ID 和回调上下文，转账后确认所有权。必需接收回调只确认预期转账，不入账、不开放业务入口；若 `nonReentrant` 阻止正常接收，改用回调认证，拒绝非预期/重复回调。
+- 原生资产先验证 `msg.value` 再记账；直接捐赠或强制转入不得自动计入用户资产。验证后统一更新会计并发出成功事件。
 
-### 资金流出：校验 → 修改业务状态 → 转出资产
+### 流出：校验 → 修改业务状态 → 转出资产
 
-- 校验接收者、权益、金额、流动性、权限、暂停规则及状态转换。
-- 在重入保护下，先扣减余额/可领取数量、消耗一次性状态并更新相关总量，再转账。赎回先销毁/扣减份额再付款。
-- ERC20 使用 `safeTransfer`，ERC721 使用要求的安全转账；原生资产使用检查成功结果的 value call 或适当的已安装 OpenZeppelin 工具。转账失败必须回退整个操作，恢复会计状态。
-- ERC721 safe mint 和转账属于外部交互：接收方回调前先完成相应业务状态。不吞掉转账错误，不在失败后记录成功。
+- 校验接收者、权益、流动性及合法状态；先扣减权益/份额、消耗一次性资格并更新总量，再转出。
+- ERC20 用 `safeTransfer`，ERC721 用所需安全转账；原生资产检查 value call 成功或使用适用 OpenZeppelin 工具。safe mint 同样先完成状态，再触发回调。
+- 转账失败原子回退、恢复会计，不吞掉异常或记录成功。复合操作分别遵守流入/流出顺序；普通存取款不引入提前授信或闪电贷。
 
-复合操作明确组合这些阶段：流入资产先到账再记入，流出资产先完成扣账再发送。普通存取款请求不引入提前授信/闪电贷流程。
+## 合法调用流程
 
-## 强制执行合法调用流程
+按业务实现参与者、状态、顺序和前后置条件的实际校验；拒绝越权、不支持的状态转换、重复领取、过期输入和回调不匹配。除非明确设计部分成功/恢复，否则失败批次不跳过、不返回成功默认值、不重试其他路径或 catch 后继续。
 
-从用户要求与现有代码推导合法状态、参与者、前置条件、转换和后置条件，用实际校验执行，不只写注释。非预期调用者、不支持的状态转换、重复领取、顺序错误、过期输入、回调不匹配及外部操作失败，必须通过适当错误原子回退；保留有用的依赖错误，不吞掉异常。
-
-除非部分成功/恢复是明确定义的功能，否则不静默跳过失败批次项、不返回看似成功的默认值、不重试另一条业务路径、不 catch 后继续。按适用范围拒绝不支持的 fallback 调用和普通的意外原生资产转入；仅让 `receive` 回退无法阻止强制转入原生资产。
-
-预期前置条件使用 `require` 搭配 custom error；没有合法后续路径的分支可使用 `revert CustomError(...)`。`assert` 仅用于真正的内部不变量，不替代不可信入参校验。
+按业务拒绝不支持的 fallback 和意外原生资产转入；`receive` 回退不能阻止强制转入。
 
 ## 验证与完成
 
-使用项目实际配置编译。补充并运行聚焦测试：入参错误、越权、暂停/恢复与紧急策略、流入到账前不记账、流出回调前已扣账、到账不符、转账失败后的回滚、含跨入口回调的重入，以及非法/重复状态转换。按需补充 token 标准及 UUPS 初始化、权限和状态保持测试。用能在回调中观察状态的 mock 验证执行顺序，不只检查最终余额。
+使用项目配置编译、检查修改文件格式并审阅 diff，核对上述约定；同步受影响 caller、脚本、错误断言、接口和文档。
 
-同步受影响 caller、部署脚本、错误断言、接口和文档。运行修改文件的格式检查并审阅 diff，逐项核对构造/初始化参数尾下划线、Ownable 与调用者 owner、constant/immutable 无前导下划线及可见性、keccak256 常量为 public、普通 private 状态变量前下划线、普通配置的读取需求、共享配置 helper、单次调用的简单 helper 是否已内联、业务入口与保留的相关 helper 是否就近成组，以及参数校验是否统一使用无参 `Errors.InvalidParameter()`、同阶段同类条件是否合并、不同类是否分开且保留安全求值顺序、地址校验是否未加入代码长度限制。共享会计、继承或初始化修改覆盖全部受影响套件；影响面无法限定，或用户/项目要求时运行全量。必需检查通过后，仅因新改动、失败或未解决疑点重复验证。
+补充并运行受影响测试，覆盖适用的入参、权限、暂停、到账、会计顺序、失败回滚、跨入口重入、非法/重复状态转换及 token/UUPS 行为。用可观察回调状态的测试探针验证执行顺序；第三方集成仍须真实 Fork。共享会计、继承或初始化修改覆盖所有受影响套件，影响面无法限定或用户/项目要求时运行全量。
 
-交付前另做命名审阅：名称是否体现业务角色，是否存在需求直译或上下文重复，资产/份额、累计/已领/可领、比例/速率与单位是否可区分，同一概念是否使用一致术语，是否为了缩短而丢失必要限定，以及是否误改既有 ABI、签名字段或升级存储标识。
-
-简短报告已实现行为、实际验证和剩余阻塞。无证据时不宣称执行成功或升级兼容。
+必需检查通过后仅因新改动、失败或未解决疑点重复验证。报告实际改动、验证结果和剩余阻塞，无证据不宣称执行成功或升级兼容。
